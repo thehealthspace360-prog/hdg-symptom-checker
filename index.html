@@ -4,636 +4,471 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-
 <style>
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
-  background: #f6f7f4;
-  color: #222;
-}
-
-.wrap {
-  max-width: 720px;
-  margin: 40px auto;
-  padding: 20px;
-}
-
-.checker {
-  background: #fff;
-  border-radius: 18px;
-  padding: 28px;
-  box-shadow: 0 6px 24px rgba(0,0,0,.08);
-}
-
-.header {
-  background: #1f5b4b;
-  color: white;
-  margin: -28px -28px 24px;
-  padding: 22px 28px;
-  border-radius: 18px 18px 0 0;
-}
-
-h1 {
-  margin: 0 0 5px;
-  font-size: 26px;
-}
-
-.sub {
-  font-size: 14px;
-  opacity: .9;
-}
-
-.language {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.lang-btn {
-  background: white;
-  color: #1f5b4b;
-  border: 1px solid #1f5b4b;
-  border-radius: 20px;
-  padding: 8px 16px;
-  cursor: pointer;
-}
-
-.lang-btn.active {
-  background: #1f5b4b;
-  color: white;
-}
-
-textarea {
-  width: 100%;
-  min-height: 95px;
-  border: 1px solid #bbb;
-  border-radius: 10px;
-  padding: 14px;
-  font-size: 16px;
-}
-
-.send {
-  width: 100%;
-  margin-top: 12px;
-  border: 0;
-  border-radius: 10px;
-  padding: 14px;
-  background: #d5a515;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.card {
-  margin-top: 20px;
-  padding: 18px;
-  background: #f3f5f1;
-  border-radius: 12px;
-  line-height: 1.55;
-  border-left: 5px solid #1f5b4b;
-}
-
-.urgent {
-  background: #fff1f0;
-  border-left-color: #b42318;
-}
-
-.article {
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 9px;
-  padding: 13px;
-  margin-top: 10px;
-}
-
-.article a {
-  color: #1f5b4b;
-  font-weight: bold;
-  text-decoration: none;
-}
-
-.small {
-  margin-top: 22px;
-  font-size: 12px;
-  color: #666;
-  line-height: 1.5;
-}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f6f7f4;color:#222}
+.wrap{max-width:760px;margin:36px auto;padding:18px}
+.checker{background:#fff;border-radius:18px;padding:28px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
+.header{background:#1f5b4b;color:#fff;margin:-28px -28px 24px;padding:22px 28px;border-radius:18px 18px 0 0}
+h1{margin:0 0 5px;font-size:26px}.sub{font-size:14px;opacity:.92}
+.language{display:flex;gap:8px;margin-bottom:20px}
+.lang-btn,.choice,.secondary{background:#fff;color:#1f5b4b;border:1px solid #1f5b4b;border-radius:20px;padding:9px 16px;cursor:pointer;font-size:14px}
+.lang-btn.active,.choice:hover{background:#1f5b4b;color:#fff}
+.question{margin:0 0 10px;line-height:1.45}
+textarea{width:100%;min-height:95px;border:1px solid #bbb;border-radius:10px;padding:14px;font-size:16px;resize:vertical}
+.send{width:100%;margin-top:12px;border:0;border-radius:10px;padding:14px;background:#d5a515;font-size:16px;font-weight:bold;cursor:pointer}
+.card{margin-top:18px;padding:18px;background:#f3f5f1;border-radius:12px;line-height:1.55;border-left:5px solid #1f5b4b}
+.urgent{background:#fff1f0;border-left-color:#b42318}
+.info{background:#fff9e6;border-left-color:#d5a515}
+.choices{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.choice{border-radius:9px}
+.summary-row{margin:7px 0}.article{background:#fff;border:1px solid #ddd;border-radius:9px;padding:13px;margin-top:10px}
+.article a{color:#1f5b4b;font-weight:bold;text-decoration:none}.article a:hover{text-decoration:underline}
+.muted{color:#666;font-size:13px}.small{margin-top:22px;font-size:12px;color:#666;line-height:1.5}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.secondary{border-radius:9px}.hidden{display:none}
+.status{font-size:12px;color:#666;margin:0 0 12px}
+@media(max-width:600px){.wrap{margin:0;padding:0}.checker{border-radius:0;min-height:100vh}.header{border-radius:0}}
 </style>
 </head>
-
 <body>
+<div class="wrap"><div class="checker">
+  <div class="header"><h1>Health Decoded Guide</h1><div class="sub">Ask HDG · Health education, not diagnosis</div></div>
 
-<div class="wrap">
-<div class="checker">
+  <div class="language">
+    <button id="englishBtn" class="lang-btn active" type="button">English</button>
+    <button id="pidginBtn" class="lang-btn" type="button">Pidgin</button>
+  </div>
 
-<div class="header">
-  <h1>Health Decoded Guide</h1>
-  <div class="sub">Ask HDG · Health education, not diagnosis</div>
-</div>
+  <div id="indexStatus" class="status">Loading HDG article index…</div>
+  <div id="chat"></div>
 
-<div class="language">
-  <button id="englishBtn" class="lang-btn active"
-    onclick="setLanguage('English')">English</button>
+  <div id="inputArea">
+    <p id="prompt" class="question"></p>
+    <textarea id="symptom"></textarea>
+    <button id="askBtn" class="send" type="button">Ask HDG</button>
+  </div>
 
-  <button id="pidginBtn" class="lang-btn"
-    onclick="setLanguage('Pidgin')">Pidgin</button>
-</div>
-
-<p id="prompt">
-  What health concern would you like help understanding today?
-  Describe it naturally.
-</p>
-
-<textarea id="symptom"
-placeholder="e.g. I have been coughing for 3 days and I also have a fever"></textarea>
-
-<button class="send" onclick="checkSymptoms()">Ask HDG</button>
-
-<div id="result"></div>
-
-<div class="small">
-HDG provides general health education and navigation only.
-It does not diagnose medical conditions or replace assessment by a
-qualified healthcare professional. If symptoms may be an emergency,
-seek urgent medical help.
-</div>
-
-</div>
-</div>
+  <div class="small">
+    HDG provides general health education and navigation only. It does not diagnose medical conditions or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
+  </div>
+</div></div>
 
 <script>
+"use strict";
 
-let language = "English";
-let ARTICLES = [];
+let language="English";
+let ARTICLES=[];
+let step="main";
+let data={main:"",duration:"",patient:"",severity:"",other:""};
 
-let conversationStep = "main_symptom";
-
-let conversationData = {
-  mainSymptom: "",
-  duration: "",
-  additionalSymptoms: ""
+const COPY={
+  English:{
+    qMain:"What health concern would you like help understanding today? Describe it naturally.",
+    phMain:"e.g. I have been coughing for 3 days and I also have a fever",
+    qDuration:"When did this start?",
+    phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
+    qPatient:"Is this for an adult or a child?",
+    qSeverity:"How severe is it?",
+    qOther:"Any other symptoms?",
+    phOther:'e.g. fever, vomiting, headache — or type "No"',
+    review:"Let's review your symptoms:",
+    correct:"Does this summary look correct?",
+    adult:"Adult", child:"Child", mild:"Mild", moderate:"Moderate", severe:"Severe",
+    yes:"Yes", no:"No", retry:"Would you like to try again?",
+    rec:"Recommended HDG articles:",
+    noMatch:"I couldn't find a close HDG article for what you described yet.",
+    general:"Based on your answers, watch your symptoms, stay hydrated and rest where appropriate, and seek medical assessment if symptoms worsen, become severe, or concern you.",
+    helpful:"Was this information useful?",
+    thanks:"Take care and get well soon. If you have more questions, you can restart Ask HDG.",
+    notHelpful:"Sorry this wasn't quite what you needed. You can try again and describe the concern differently.",
+    urgentTitle:"⚠️ What you described may need urgent medical attention.",
+    urgentBody:"Please seek urgent medical help now or contact your local emergency service. Do not rely on Ask HDG to delay emergency care.",
+    empty:"Please describe what is bothering you first."
+  },
+  Pidgin:{
+    qMain:"Wetin dey worry you today? You fit explain am the way you normally talk.",
+    phMain:"e.g. I don dey cough for 3 days and fever dey worry me",
+    qDuration:"Na when e start?",
+    phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
+    qPatient:"Na for adult or pikin?",
+    qSeverity:"How e strong reach?",
+    qOther:"Any other symptom?",
+    phOther:'e.g. fever, vomit, headache — or type "No"',
+    review:"Make we run check your symptoms:",
+    correct:"Na so e be?",
+    adult:"Adult", child:"Pikin", mild:"Small", moderate:"Medium", severe:"Serious",
+    yes:"Yes", no:"No", retry:"Make u try again?",
+    rec:"HDG article wey fit help you:",
+    noMatch:"I no find close HDG article for wetin you describe yet.",
+    general:"Based on your answers, make you watch your symptoms, drink enough water and rest where e make sense. If e dey worse, e serious, or you dey worried, abeg seek medical assessment.",
+    helpful:"Dis info help you?",
+    thanks:"Take care and get well soon. If you get another question, you fit start Ask HDG again.",
+    notHelpful:"Sorry say this one no really help you. You fit try again and describe wetin dey worry you another way.",
+    urgentTitle:"⚠️ Wetin you describe fit need urgent medical attention.",
+    urgentBody:"Abeg seek urgent medical help now or contact your local emergency service. No depend on Ask HDG to delay emergency care.",
+    empty:"Abeg tell us wetin dey worry you first."
+  }
 };
-const STOP_WORDS = new Set([
-  "i","a","an","the","and","or","but","have","has","had","been",
-  "for","of","to","my","me","also","with","is","are","am","it",
-  "in","on","at","this","that","from","do","does","did","very",
-  "just","some","day","days","week","weeks"
-]);
 
-const EMERGENCY_PATTERNS = [
-  "cannot breathe",
-  "can't breathe",
-  "severe shortness of breath",
-  "crushing chest pain",
-  "severe chest pain",
-  "unconscious",
-  "not waking",
-  "face droop",
-  "slurred speech",
-  "one sided weakness",
-  "one-sided weakness",
-  "heavy bleeding",
-  "kill myself",
-  "harm myself",
-  "suicidal"
+const ALWAYS_URGENT=[
+  "cannot breathe","can't breathe","cant breathe","not breathing","struggling to breathe","gasping",
+  "severe shortness of breath","blue lips","blue tongue","unconscious","not waking","not responding",
+  "face droop","slurred speech","one sided weakness","one-sided weakness","sudden weakness one side",
+  "heavy bleeding","bleeding won't stop","bleeding wont stop","choking","seizure not stopping",
+  "seizure lasting more than 5 minutes","kill myself","harm myself","suicidal","no fit breathe"
 ];
 
-function normalize(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const HIGH_RISK_SYMPTOMS=[
+  "chest pain","chest pressure","chest tightness","difficulty breathing","shortness of breath",
+  "breathless","breathing problem","seizure","fainting","passed out","confusion","severe headache",
+  "sudden weakness","blood in vomit","vomiting blood","coughing blood","heavy bleeding"
+];
+
+const CHILD_HIGH_RISK=[
+  "difficulty breathing","shortness of breath","struggling to breathe","very sleepy","hard to wake",
+  "not drinking","not feeding","blue lips","seizure"
+];
+
+const STOP=new Set("i a an the and or but have has had been for of to my me also with is are am it in on at this that from do does did very just some day days week weeks ago started start since dey don na e wey you your me no be fit get".split(" "));
+
+function norm(s){
+  return String(s||"").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu," ").replace(/\s+/g," ").trim();
 }
 
-function parseIndex(text) {
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
 
-  const blocks = text.split(
-    /(?=^ARTICLE\s+\d+\s*$)/gmi
-  );
+function phraseIn(text, list){
+  const n=norm(text);
+  return list.some(x=>n.includes(norm(x)));
+}
 
-  return blocks.map(block => {
+function emergencyStatus(text, severity="", patient=""){
+  if(phraseIn(text, ALWAYS_URGENT)) return true;
+  if(severity==="severe" && phraseIn(text, HIGH_RISK_SYMPTOMS)) return true;
+  if(patient==="child" && phraseIn(text, CHILD_HIGH_RISK)) return true;
+  return false;
+}
 
-    const fields = {};
-
-    block.split(/\r?\n/).forEach(line => {
-
-      const match = line.match(
-        /^([A-Z][A-Z _/-]+):\s*(.*)$/
-      );
-
-      if (match) {
-        fields[match[1].trim()] = match[2].trim();
-      }
+function parseIndex(text){
+  return text.split(/(?=^ARTICLE\s+\d+\s*$)/gmi).map(block=>{
+    const f={};
+    block.split(/\r?\n/).forEach(line=>{
+      const m=line.match(/^([A-Z][A-Z _/-]+):\s*(.*)$/);
+      if(m) f[m[1].trim()]=m[2].trim();
     });
-
-    const title = fields["TITLE"] || "";
-    const url = fields["URL"] || "";
-    const articleLanguage = fields["LANGUAGE"] || "";
-
-    if (!title || !url) return null;
-
+    if(!f.TITLE||!f.URL) return null;
     return {
-      title,
-      url,
-      language: articleLanguage,
-      category: fields["CATEGORY"] || "",
-      emergency:
-        fields["EMERGENCY FLAG"] ||
-        fields["EMERGENCY"] ||
-        "",
-      searchable: normalize(block)
+      title:f.TITLE,
+      url:f.URL,
+      language:f.LANGUAGE||"",
+      category:f.CATEGORY||"",
+      emergency:f["EMERGENCY FLAG"]||f.EMERGENCY||"",
+      keywords:f.KEYWORDS||"",
+      searchable:norm([f.TITLE,f.CATEGORY,f.KEYWORDS].join(" "))
     };
-
   }).filter(Boolean);
 }
 
-async function loadArticles() {
+async function loadArticles(){
+  const status=document.getElementById("indexStatus");
+  const candidates=[
+    "./HDG_Public_Article_Index.txt",
+    "./HDG_Public_Article_Index(1).txt"
+  ];
 
-  try {
-
-    const response = await fetch(
-      "./HDG_Public_Article_Index.txt"
-    );
-
-    if (!response.ok) {
-      throw new Error("Could not load HDG article index");
+  for(const path of candidates){
+    try{
+      const r=await fetch(path,{cache:"no-store"});
+      if(!r.ok) continue;
+      const text=await r.text();
+      const parsed=parseIndex(text);
+      if(parsed.length){
+        ARTICLES=parsed;
+        status.textContent=`HDG article index ready · ${ARTICLES.length} articles`;
+        console.log("HDG index loaded:",ARTICLES.length,"articles from",path);
+        return;
+      }
+    }catch(e){
+      console.warn("Index candidate failed:",path,e);
     }
-
-    const text = await response.text();
-
-    ARTICLES = parseIndex(text);
-
-    console.log(
-      "HDG index loaded:",
-      ARTICLES.length,
-      "articles"
-    );
-
-  } catch (error) {
-
-    console.error(
-      "HDG_INDEX_ERROR",
-      error
-    );
-  }
-}
-
-loadArticles();
-
-function setLanguage(lang) {
-
-  language = lang;
-
-  document
-    .getElementById("englishBtn")
-    .classList.toggle(
-      "active",
-      lang === "English"
-    );
-
-  document
-    .getElementById("pidginBtn")
-    .classList.toggle(
-      "active",
-      lang === "Pidgin"
-    );
-
-  if (lang === "Pidgin") {
-
-    document.getElementById("prompt").textContent =
-      "Wetin dey worry you today? You fit explain am the way you normally talk.";
-
-    document.getElementById("symptom").placeholder =
-      "e.g. I don dey cough for 3 days and fever dey worry me";
-
-  } else {
-
-    document.getElementById("prompt").textContent =
-      "What health concern would you like help understanding today? Describe it naturally.";
-
-    document.getElementById("symptom").placeholder =
-      "e.g. I have been coughing for 3 days and I also have a fever";
   }
 
-  document.getElementById("result").innerHTML = "";
+  status.textContent="HDG article index could not load.";
+  console.error("HDG_INDEX_ERROR: no valid index file found");
 }
 
-function isEmergency(text) {
-
-  const clean = normalize(text);
-
-  return EMERGENCY_PATTERNS.some(
-    pattern => clean.includes(normalize(pattern))
-  );
+function words(s){
+  return [...new Set(norm(s).split(" ").filter(w=>w.length>2&&!STOP.has(w)))];
 }
 
-function getSearchWords(text) {
+function score(a,q){
+  const ws=words(q);
+  const title=norm(a.title), keys=norm(a.keywords), cat=norm(a.category);
+  let score=0;
 
-  return normalize(text)
-    .split(" ")
-    .filter(word =>
-      word.length > 2 &&
-      !STOP_WORDS.has(word)
-    );
-}
+  ws.forEach(w=>{
+    if(title===w) score+=40;
+    else if(title.startsWith(w+" ")) score+=20;
+    else if(title.includes(w)) score+=8;
 
-function scoreArticle(article, words) {
-
-  let score = 0;
-
-  const title = normalize(article.title);
-  const category = normalize(article.category);
-  const searchable = article.searchable;
-
-  words.forEach(word => {
-
-    if (title.includes(word)) {
-      score += 8;
-    }
-
-    if (category.includes(word)) {
-      score += 4;
-    }
-
-    if (searchable.includes(word)) {
-      score += 1;
-    }
-
+    if(keys.includes(w)) score+=7;
+    if(cat.includes(w)) score+=2;
   });
+
+  const nq=norm(q);
+  if(nq && title.includes(nq)) score+=35;
+
+  // Penalize comparison articles unless the user actually mentions both sides.
+  if(/\bvs\b/.test(title) && !/\bvs\b/.test(nq)) score-=8;
 
   return score;
 }
 
-function findArticles(query) {
+function findArticles(q){
+  let pref=ARTICLES.filter(a=>norm(a.language)===norm(language));
+  if(!pref.length) pref=ARTICLES;
 
-  const words = getSearchWords(query);
+  let ranked=pref
+    .map(a=>({...a,score:score(a,q)}))
+    .filter(a=>a.score>0)
+    .sort((a,b)=>b.score-a.score);
 
-  let preferred = ARTICLES.filter(article =>
-    normalize(article.language) ===
-    normalize(language)
-  );
-
-  if (!preferred.length) {
-    preferred = ARTICLES;
-  }
-
-  let matches = preferred
-    .map(article => ({
-      ...article,
-      score: scoreArticle(article, words)
-    }))
-    .filter(article => article.score > 0)
-    .sort((a,b) => b.score - a.score);
-
-  if (
-    language === "Pidgin" &&
-    matches.length < 3
-  ) {
-
-    const english = ARTICLES
-      .filter(article =>
-        normalize(article.language) === "english"
-      )
-      .map(article => ({
-        ...article,
-        score: scoreArticle(article, words)
-      }))
-      .filter(article => article.score > 0)
-      .sort((a,b) => b.score - a.score);
-
-    matches = [...matches, ...english];
-  }
-
-  const seen = new Set();
-
-  return matches.filter(article => {
-
-    if (seen.has(article.url)) {
-      return false;
-    }
-
-    seen.add(article.url);
-    return true;
-
-  }).slice(0,3);
+  const seen=new Set();
+  return ranked.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,3);
 }
 
-function checkSymptoms() {
+const chat=document.getElementById("chat");
+const promptEl=document.getElementById("prompt");
+const input=document.getElementById("symptom");
+const ask=document.getElementById("askBtn");
+const inputArea=document.getElementById("inputArea");
 
-  const input =
-    document.getElementById("symptom").value.trim();
+function C(){return COPY[language];}
 
-  const result =
-    document.getElementById("result");
+function showCard(html,urgent=false,info=false){
+  chat.innerHTML=`<div class="card${urgent?" urgent":""}${info?" info":""}">${html}</div>`;
+}
 
-  if (!input) {
+function setQuestion(q,ph=""){
+  promptEl.textContent=q;
+  input.placeholder=ph;
+  input.value="";
+  inputArea.classList.remove("hidden");
+  setTimeout(()=>input.focus(),0);
+}
 
-    result.innerHTML = `
-      <div class="card">
-      ${
-        language === "Pidgin"
-        ? "Abeg tell us wetin dey worry you first."
-        : "Please describe what is bothering you first."
-      }
-      </div>
-    `;
+function choices(q,opts){
+  inputArea.classList.add("hidden");
+  showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}">${esc(o.t)}</button>`).join("")}</div>`);
+  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
+}
 
+function reset(){
+  step="main";
+  data={main:"",duration:"",patient:"",severity:"",other:""};
+  chat.innerHTML="";
+  setQuestion(C().qMain,C().phMain);
+}
+
+function setLanguage(lang){
+  language=lang;
+  document.getElementById("englishBtn").classList.toggle("active",lang==="English");
+  document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
+  reset();
+}
+
+function currentContext(extra=""){
+  return [data.main,data.other,extra].filter(Boolean).join(" ");
+}
+
+function submitText(){
+  const v=input.value.trim();
+  if(!v){showCard(C().empty);return;}
+
+  if(emergencyStatus(currentContext(v),data.severity,data.patient)){
+    urgent();
     return;
   }
 
-  if (isEmergency(input)) {
-
-    result.innerHTML = `
-      <div class="card urgent">
-
-      <strong>
-      ${
-        language === "Pidgin"
-        ? "⚠️ Wetin you describe fit need urgent medical attention."
-        : "⚠️ What you described may need urgent medical attention."
-      }
-      </strong>
-
-      <br><br>
-
-      ${
-        language === "Pidgin"
-        ? "Please seek emergency medical help now or contact your local emergency service. No depend on Ask HDG for emergency."
-        : "Please seek emergency medical help now or contact your local emergency service. Do not rely on Ask HDG for emergency care."
-      }
-
-      </div>
-    `;
-
-    return;
-  }
-  if (conversationStep === "main_symptom") {
-
-    conversationData.mainSymptom = input;
-    conversationStep = "duration";
-
-    result.innerHTML = `
-      <div class="card">
-        <strong>
-          ${
-            language === "Pidgin"
-              ? "How long e don dey happen?"
-              : "How long have you had these symptoms?"
-          }
-        </strong>
-        <br><br>
-        ${
-          language === "Pidgin"
-            ? "You fit type something like: today, 3 days, one week, or longer."
-            : "You can type something like: today, 3 days, one week, or longer."
-        }
-      </div>
-    `;
-
-    document.getElementById("symptom").value = "";
+  if(step==="main"){
+    data.main=v;
+    step="duration";
+    setQuestion(C().qDuration,C().phDuration);
     return;
   }
 
-  if (conversationStep === "duration") {
-
-    conversationData.duration = input;
-    conversationStep = "additional_symptoms";
-
-    result.innerHTML = `
-      <div class="card">
-        <strong>
-          ${
-            language === "Pidgin"
-              ? "Any other symptom dey worry you?"
-              : "Are you having any other symptoms?"
-          }
-        </strong>
-        <br><br>
-        ${
-          language === "Pidgin"
-            ? 'Tell us the other symptoms, or type "No".'
-            : 'Tell us the other symptoms, or type "No".'
-        }
-      </div>
-    `;
-
-    document.getElementById("symptom").value = "";
-    return;
-  }
-    if (conversationStep === "additional_symptoms") {
-
-    const cleanAdditional = input.trim().toLowerCase();
-
-    conversationData.additionalSymptoms =
-      cleanAdditional === "no" ||
-      cleanAdditional === "none" ||
-      cleanAdditional === "nope"
-        ? ""
-        : input;
-
-    conversationStep = "recommendations";
-  }
-  if (!ARTICLES.length) {
-
-    result.innerHTML = `
-      <div class="card">
-      HDG article index is still loading.
-      Please try again in a moment.
-      </div>
-    `;
-
+  if(step==="duration"){
+    data.duration=v;
+    step="patient";
+    choices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);
     return;
   }
 
-  if (conversationStep === "additional_symptoms") {
+  if(step==="other"){
+    data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
 
-    const cleanAdditional = input.trim().toLowerCase();
-
-    conversationData.additionalSymptoms =
-      cleanAdditional === "no" ||
-      cleanAdditional === "none" ||
-      cleanAdditional === "nope"
-        ? ""
-        : input;
-
-    conversationStep = "recommendations";
-  }
-  const combinedQuery = [
-  conversationData.mainSymptom,
-  conversationData.duration,
-  conversationData.additionalSymptoms
-].filter(Boolean).join(" ");
-
-const matches = findArticles(combinedQuery);
-  if (!matches.length) {
-
-    result.innerHTML = `
-      <div class="card">
-      ${
-        language === "Pidgin"
-        ? "I no find close HDG article for wetin you describe yet."
-        : "I couldn't find a close HDG article for what you described yet."
-      }
-      </div>
-    `;
-
-    return;
-  }
-
-  let html = `
-    <div class="card">
-
-    <strong>
-    ${
-      language === "Pidgin"
-      ? "These HDG articles fit help you understand wetin you describe:"
-      : "These HDG articles may help you understand what you described:"
-    }
-    </strong>
-  `;
-
-  matches.forEach(article => {
-
-    html += `
-      <div class="article">
-
-      <a
-        href="${article.url}"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        ${article.title}
-      </a>
-
-      ${
-        article.category
-        ? `<br><small>${article.category}</small>`
-        : ""
-      }
-
-      </div>
-    `;
-  });
-
-  html += `
-    <br>
-    ${
-      language === "Pidgin"
-      ? "These recommendations no be diagnosis. If your symptoms dey worse or you dey worried, seek medical assessment."
-      : "These recommendations are not a diagnosis. If symptoms are worsening or concerning, seek medical assessment."
+    if(emergencyStatus(currentContext(),data.severity,data.patient)){
+      urgent();
+      return;
     }
 
+    review();
+  }
+}
+
+function choose(v){
+  if(step==="patient"){
+    data.patient=v;
+    step="severity";
+    choices(C().qSeverity,[
+      {t:C().mild,v:"mild"},
+      {t:C().moderate,v:"moderate"},
+      {t:C().severe,v:"severe"}
+    ]);
+    return;
+  }
+
+  if(step==="severity"){
+    data.severity=v;
+
+    if(emergencyStatus(currentContext(),data.severity,data.patient)){
+      urgent();
+      return;
+    }
+
+    step="other";
+    setQuestion(C().qOther,C().phOther);
+    return;
+  }
+
+  if(step==="confirm"){
+    if(v==="yes") recommend();
+    else reset();
+    return;
+  }
+
+  if(step==="helpful"){
+    if(v==="yes"){
+      inputArea.classList.add("hidden");
+      showCard(C().thanks);
+    }else{
+      step="retry";
+      choices(C().notHelpful+" "+C().retry,[{t:C().yes,v:"yes"},{t:C().no,v:"no"}]);
+    }
+    return;
+  }
+
+  if(step==="retry"){
+    if(v==="yes") reset();
+    else{
+      inputArea.classList.add("hidden");
+      showCard(C().thanks);
+    }
+  }
+}
+
+function review(){
+  step="confirm";
+  inputArea.classList.add("hidden");
+  const other=data.other||C().no;
+
+  showCard(`
+    <strong>${esc(C().review)}</strong>
+    <div class="summary-row"><b>${language==="Pidgin"?"Wetin dey worry you pass":"Main symptom"}:</b> ${esc(data.main)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Na when e start":"When it started"}:</b> ${esc(data.duration)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Na for":"For"}:</b> ${esc(data.patient==="child"?C().child:C().adult)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"How e strong reach":"Severity"}:</b> ${esc({mild:C().mild,moderate:C().moderate,severe:C().severe}[data.severity])}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Any other symptom":"Other symptoms"}:</b> ${esc(other)}</div>
+    <hr>
+    <strong>${esc(C().correct)}</strong>
+    <div class="choices">
+      <button class="choice" data-v="yes">${esc(C().yes)}</button>
+      <button class="choice" data-v="no">${esc(C().no)}</button>
+    </div>
+  `);
+
+  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
+}
+
+function urgent(){
+  inputArea.classList.add("hidden");
+  step="done";
+
+  showCard(`
+    <strong>${esc(C().urgentTitle)}</strong>
+    <br><br>
+    ${esc(C().urgentBody)}
+    <div class="actions">
+      <button type="button" class="secondary" id="restart">${esc(C().retry)}</button>
+    </div>
+  `,true);
+
+  document.getElementById("restart").onclick=reset;
+}
+
+function recommend(){
+  if(emergencyStatus(currentContext(),data.severity,data.patient)){
+    urgent();
+    return;
+  }
+
+  if(!ARTICLES.length){
+    showCard("HDG article index is not ready yet. Refresh the page once. If the message remains, make sure HDG_Public_Article_Index.txt is in the same GitHub folder as index.html.",false,true);
+    return;
+  }
+
+  const q=[
+    data.main,
+    data.other,
+    data.patient==="child"?"child children pikin":"adult"
+  ].filter(Boolean).join(" ");
+
+  const m=findArticles(q);
+  step="helpful";
+  inputArea.classList.add("hidden");
+
+  let body=`<strong>${esc(C().rec)}</strong>`;
+
+  if(m.length){
+    m.forEach(a=>{
+      body+=`
+        <div class="article">
+          <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
+          ${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}
+        </div>
+      `;
+    });
+  }else{
+    body+=`<p>${esc(C().noMatch)}</p>`;
+  }
+
+  body+=`
+    <p>${esc(C().general)}</p>
+    <p class="muted">${language==="Pidgin"?"These recommendations no be diagnosis.":"These recommendations are not a diagnosis."}</p>
+    <strong>${esc(C().helpful)}</strong>
+    <div class="choices">
+      <button class="choice" data-v="yes">${esc(C().yes)}</button>
+      <button class="choice" data-v="no">${esc(C().no)}</button>
     </div>
   `;
 
-  result.innerHTML = html;
+  showCard(body);
+  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
 
-</script>
+document.getElementById("englishBtn").onclick=()=>setLanguage("English");
+document.getElementById("pidginBtn").onclick=()=>setLanguage("Pidgin");
+ask.onclick=submitText;
+input.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){
+    e.preventDefault();
+    submitText();
+  }
+});
 
+reset();
+loadArticles();
+</script>
 </body>
 </html>
