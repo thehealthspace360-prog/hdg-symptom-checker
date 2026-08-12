@@ -464,7 +464,72 @@ function checkSymptoms() {
 
     return;
   }
+  if (conversationStep === "main_symptom") {
 
+    conversationData.mainSymptom = input;
+    conversationStep = "duration";
+
+    result.innerHTML = `
+      <div class="card">
+        <strong>
+          ${
+            language === "Pidgin"
+              ? "How long e don dey happen?"
+              : "How long have you had these symptoms?"
+          }
+        </strong>
+        <br><br>
+        ${
+          language === "Pidgin"
+            ? "You fit type something like: today, 3 days, one week, or longer."
+            : "You can type something like: today, 3 days, one week, or longer."
+        }
+      </div>
+    `;
+
+    document.getElementById("symptom").value = "";
+    return;
+  }
+
+  if (conversationStep === "duration") {
+
+    conversationData.duration = input;
+    conversationStep = "additional_symptoms";
+
+    result.innerHTML = `
+      <div class="card">
+        <strong>
+          ${
+            language === "Pidgin"
+              ? "Any other symptom dey worry you?"
+              : "Are you having any other symptoms?"
+          }
+        </strong>
+        <br><br>
+        ${
+          language === "Pidgin"
+            ? 'Tell us the other symptoms, or type "No".'
+            : 'Tell us the other symptoms, or type "No".'
+        }
+      </div>
+    `;
+
+    document.getElementById("symptom").value = "";
+    return;
+  }
+    if (conversationStep === "additional_symptoms") {
+
+    const cleanAdditional = input.trim().toLowerCase();
+
+    conversationData.additionalSymptoms =
+      cleanAdditional === "no" ||
+      cleanAdditional === "none" ||
+      cleanAdditional === "nope"
+        ? ""
+        : input;
+
+    conversationStep = "recommendations";
+  }
   if (!ARTICLES.length) {
 
     result.innerHTML = `
@@ -477,8 +542,26 @@ function checkSymptoms() {
     return;
   }
 
-  const matches = findArticles(input);
+  if (conversationStep === "additional_symptoms") {
 
+    const cleanAdditional = input.trim().toLowerCase();
+
+    conversationData.additionalSymptoms =
+      cleanAdditional === "no" ||
+      cleanAdditional === "none" ||
+      cleanAdditional === "nope"
+        ? ""
+        : input;
+
+    conversationStep = "recommendations";
+  }
+  const combinedQuery = [
+  conversationData.mainSymptom,
+  conversationData.duration,
+  conversationData.additionalSymptoms
+].filter(Boolean).join(" ");
+
+const matches = findArticles(combinedQuery);
   if (!matches.length) {
 
     result.innerHTML = `
