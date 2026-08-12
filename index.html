@@ -111,21 +111,29 @@ const COPY={
 
 const ALWAYS_URGENT=[
   "cannot breathe","can't breathe","cant breathe","not breathing","struggling to breathe","gasping",
-  "severe shortness of breath","blue lips","blue tongue","unconscious","not waking","not responding",
+  "blue lips","blue tongue","unconscious","not waking","not responding","collapsed",
   "face droop","slurred speech","one sided weakness","one-sided weakness","sudden weakness one side",
-  "heavy bleeding","bleeding won't stop","bleeding wont stop","choking","seizure not stopping",
-  "seizure lasting more than 5 minutes","kill myself","harm myself","suicidal","no fit breathe"
+  "heavy bleeding","bleeding won't stop","bleeding wont stop","choking",
+  "seizure not stopping","seizure lasting more than 5 minutes",
+  "kill myself","harm myself","suicidal","no fit breathe"
 ];
 
-const HIGH_RISK_SYMPTOMS=[
-  "chest pain","chest pressure","chest tightness","difficulty breathing","shortness of breath",
-  "breathless","breathing problem","seizure","fainting","passed out","confusion","severe headache",
-  "sudden weakness","blood in vomit","vomiting blood","coughing blood","heavy bleeding"
+const URGENT_SYMPTOMS=[
+  "chest pain","chest pressure","chest tightness",
+  "difficulty breathing","shortness of breath","breathless","breathing problem","wheezing badly",
+  "seizure","convulsion","fitting","fainting","passed out","blackout",
+  "confusion","new confusion","severe headache","worst headache","sudden headache",
+  "sudden weakness","weakness one side","face droop","slurred speech",
+  "vomiting blood","blood in vomit","coughing blood","heavy bleeding",
+  "severe abdominal pain","severe tummy pain","severe belly pain",
+  "severe allergic reaction","swollen tongue","swollen throat",
+  "high fever with stiff neck","stiff neck and fever"
 ];
 
 const CHILD_HIGH_RISK=[
-  "difficulty breathing","shortness of breath","struggling to breathe","very sleepy","hard to wake",
-  "not drinking","not feeding","blue lips","seizure"
+  "difficulty breathing","shortness of breath","struggling to breathe","breathing problem",
+  "very sleepy","hard to wake","not waking","not drinking","not feeding",
+  "blue lips","seizure","convulsion","floppy","limp"
 ];
 
 const STOP=new Set("i a an the and or but have has had been for of to my me also with is are am it in on at this that from do does did very just some day days week weeks ago started start since dey don na e wey you your me no be fit get".split(" "));
@@ -144,10 +152,21 @@ function phraseIn(text, list){
 }
 
 function emergencyStatus(text, severity="", patient=""){
-  if(phraseIn(text, ALWAYS_URGENT)) return true;
-  if(severity==="severe" && phraseIn(text, HIGH_RISK_SYMPTOMS)) return true;
-  if(patient==="child" && phraseIn(text, CHILD_HIGH_RISK)) return true;
-  return false;
+  const n = norm(text);
+
+  if(phraseIn(n, ALWAYS_URGENT)) return "emergency";
+  if(phraseIn(n, URGENT_SYMPTOMS)) return "urgent";
+  if(patient==="child" && phraseIn(n, CHILD_HIGH_RISK)) return "urgent";
+
+  if(severity==="severe"){
+    const seriousWords=[
+      "pain","bleeding","breathing","breath","fever","vomit","headache",
+      "weakness","dizzy","dizziness","confusion","swelling","allergic",
+      "dehydration","diarrhea","diarrhoea"
+    ];
+    if(seriousWords.some(w=>n.includes(w))) return "urgent";
+  }
+  return "";
 }
 
 function parseIndex(text){
@@ -204,23 +223,32 @@ function words(s){
 
 function score(a,q){
   const ws=words(q);
-  const title=norm(a.title), keys=norm(a.keywords), cat=norm(a.category);
+  const title=norm(a.title);
+  const keys=norm(a.keywords);
+  const cat=norm(a.category);
+  const nq=norm(q);
   let score=0;
 
   ws.forEach(w=>{
-    if(title===w) score+=40;
-    else if(title.startsWith(w+" ")) score+=20;
-    else if(title.includes(w)) score+=8;
+    if(title===w) score+=120;
+    else if(title.startsWith(w+" ")) score+=45;
+    else if(title.includes(" "+w+" ") || title.endsWith(" "+w)) score+=28;
+    else if(title.includes(w)) score+=18;
 
-    if(keys.includes(w)) score+=7;
+    if(keys.includes(w)) score+=6;
     if(cat.includes(w)) score+=2;
   });
 
-  const nq=norm(q);
-  if(nq && title.includes(nq)) score+=35;
+  if(title && nq.includes(title)) score+=140;
 
-  // Penalize comparison articles unless the user actually mentions both sides.
-  if(/\bvs\b/.test(title) && !/\bvs\b/.test(nq)) score-=8;
+  const titleWordCount=title.split(" ").filter(Boolean).length;
+  if(titleWordCount<=3) score+=35;
+  else if(titleWordCount<=5) score+=12;
+
+  score-=Math.max(0,titleWordCount-6)*2;
+  if(/vs/.test(title) && !/vs/.test(nq)) score-=45;
+
+  if(ws.length>=1 && ws.filter(w=>title.includes(w)).length===0) score-=20;
 
   return score;
 }
@@ -286,9 +314,12 @@ function submitText(){
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
 
-  if(emergencyStatus(currentContext(v),data.severity,data.patient)){
-    urgent();
-    return;
+  {
+    const safety=emergencyStatus(currentContext(v),data.severity,data.patient);
+    if(safety){
+      urgent(safety);
+      return;
+    }
   }
 
   if(step==="main"){
@@ -308,9 +339,12 @@ function submitText(){
   if(step==="other"){
     data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
 
-    if(emergencyStatus(currentContext(),data.severity,data.patient)){
-      urgent();
-      return;
+    {
+      const safety=emergencyStatus(currentContext(),data.severity,data.patient);
+      if(safety){
+        urgent(safety);
+        return;
+      }
     }
 
     review();
@@ -332,9 +366,12 @@ function choose(v){
   if(step==="severity"){
     data.severity=v;
 
-    if(emergencyStatus(currentContext(),data.severity,data.patient)){
-      urgent();
-      return;
+    {
+      const safety=emergencyStatus(currentContext(),data.severity,data.patient);
+      if(safety){
+        urgent(safety);
+        return;
+      }
     }
 
     step="other";
@@ -391,14 +428,27 @@ function review(){
   chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
 
-function urgent(){
+function urgent(level="urgent"){
   inputArea.classList.add("hidden");
   step="done";
 
+  const isEmergency=level==="emergency";
+  const title=isEmergency
+    ? C().urgentTitle
+    : (language==="Pidgin"
+        ? "⚠️ Wetin you describe fit need urgent medical assessment."
+        : "⚠️ What you described may need urgent medical assessment.");
+
+  const body=isEmergency
+    ? C().urgentBody
+    : (language==="Pidgin"
+        ? "Abeg no depend on Ask HDG alone for this one. Seek urgent medical assessment. If the person dey get worse quickly, collapse, no fit breathe, or you think say na emergency, contact emergency services."
+        : "Please do not rely on Ask HDG alone for this. Seek urgent medical assessment. If symptoms are rapidly worsening, the person collapses, cannot breathe, or you think this is an emergency, contact emergency services.");
+
   showCard(`
-    <strong>${esc(C().urgentTitle)}</strong>
+    <strong>${esc(title)}</strong>
     <br><br>
-    ${esc(C().urgentBody)}
+    ${esc(body)}
     <div class="actions">
       <button type="button" class="secondary" id="restart">${esc(C().retry)}</button>
     </div>
@@ -408,9 +458,12 @@ function urgent(){
 }
 
 function recommend(){
-  if(emergencyStatus(currentContext(),data.severity,data.patient)){
-    urgent();
-    return;
+  {
+    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
+    if(safety){
+      urgent(safety);
+      return;
+    }
   }
 
   if(!ARTICLES.length){
