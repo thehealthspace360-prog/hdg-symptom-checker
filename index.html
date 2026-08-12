@@ -374,28 +374,52 @@ function searchWords(s){
 
 function scoreArticle(a,q){
   const ws=searchWords(q);
-  const title=norm(a.title), keys=norm(a.keywords), cat=norm(a.category), nq=norm(q);
+  const title=norm(a.title);
+  const keys=norm(a.keywords);
+  const cat=norm(a.category);
+  const nq=norm(q);
+
   let score=0;
+  let lexicalMatches=0;
+
   ws.forEach(w=>{
-    if(title===w) score+=140;
-    else if(title.startsWith(w+" ")) score+=55;
-    else if(title.includes(" "+w+" ") || title.endsWith(" "+w)) score+=32;
-    else if(title.includes(w)) score+=18;
-    if(keys.includes(w)) score+=7;
-    if(cat.includes(w)) score+=2;
+    const titleHit = title===w || title.startsWith(w+" ") ||
+      title.includes(" "+w+" ") || title.endsWith(" "+w) || title.includes(w);
+    const keyHit = keys.includes(w);
+
+    if(titleHit || keyHit) lexicalMatches++;
+
+    if(title===w) score+=160;
+    else if(title.startsWith(w+" ")) score+=70;
+    else if(title.includes(" "+w+" ") || title.endsWith(" "+w)) score+=42;
+    else if(title.includes(w)) score+=24;
+
+    if(keyHit) score+=12;
+
+    // Category can only refine an already relevant article; it cannot create relevance.
+    if((titleHit || keyHit) && cat.includes(w)) score+=2;
   });
-  if(title && nq.includes(title)) score+=160;
+
+  // HARD GATE: no title/keyword match = never recommend this article.
+  if(lexicalMatches===0) return -9999;
+
+  if(title && nq.includes(title)) score+=180;
+
   const wc=title.split(" ").filter(Boolean).length;
-  if(wc<=3) score+=45;
-  else if(wc<=5) score+=15;
+  if(wc<=3) score+=50;
+  else if(wc<=5) score+=18;
+
   score-=Math.max(0,wc-6)*2;
-  if(/\bvs\b/.test(title) && !/\bvs\b/.test(nq)) score-=55;
+
+  // Comparison pages should not outrank direct symptom pages unless comparison is requested.
+  if(/vs/.test(title) && !/vs/.test(nq)) score-=70;
 
   if(data.patient==="child"){
     if(cat.includes("children")||title.includes("child")||title.includes("children")||title.includes("pikin")||title.includes("baby")) score+=22;
   }else if(data.patient==="adult"){
     if(cat.includes("children")||title.includes("child")||title.includes("children")||title.includes("pikin")||title.includes("baby")) score-=40;
   }
+
   return score;
 }
 
