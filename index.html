@@ -58,6 +58,7 @@ textarea{width:100%;min-height:95px;border:1px solid #bbb;border-radius:10px;pad
 let language="English";
 let ARTICLES=[];
 let step="main";
+let potentialUrgent = false;
 let data={main:"",duration:"",patient:"",severity:"",other:""};
 
 const COPY={
@@ -293,6 +294,7 @@ function choices(q,opts){
 }
 
 function reset(){
+  potentialUrgent=false;
   step="main";
   data={main:"",duration:"",patient:"",severity:"",other:""};
   chat.innerHTML="";
@@ -316,9 +318,12 @@ function submitText(){
 
   {
     const safety=emergencyStatus(currentContext(v),data.severity,data.patient);
-    if(safety){
-      urgent(safety);
+    if(safety==="emergency"){
+      urgent("emergency");
       return;
+    }
+    if(safety==="urgent" && !potentialUrgent){
+      showPotentialUrgentWarning();
     }
   }
 
@@ -340,12 +345,15 @@ function submitText(){
     data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
 
     {
-      const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-      if(safety){
-        urgent(safety);
-        return;
-      }
+    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
+    if(safety==="emergency"){
+      urgent("emergency");
+      return;
     }
+    if(safety==="urgent" && !potentialUrgent){
+      showPotentialUrgentWarning();
+    }
+  }
 
     review();
   }
@@ -367,12 +375,15 @@ function choose(v){
     data.severity=v;
 
     {
-      const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-      if(safety){
-        urgent(safety);
-        return;
-      }
+    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
+    if(safety==="emergency"){
+      urgent("emergency");
+      return;
     }
+    if(safety==="urgent" && !potentialUrgent){
+      showPotentialUrgentWarning();
+    }
+  }
 
     step="other";
     setQuestion(C().qOther,C().phOther);
@@ -428,6 +439,14 @@ function review(){
   chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
 
+function showPotentialUrgentWarning(){
+  potentialUrgent = true;
+  const msg = language==="Pidgin"
+    ? "⚠️ Some of wetin you describe fit need urgent medical assessment. We go ask a few more short questions to understand the picture better, but no delay emergency care if the person dey very unwell or dey get worse quickly."
+    : "⚠️ Some of what you described may need urgent medical assessment. Ask HDG will ask a few more short questions to understand the picture better, but do not delay emergency care if the person is very unwell or worsening quickly.";
+  showCard(`<strong>${esc(msg)}</strong>`, true);
+}
+
 function urgent(level="urgent"){
   inputArea.classList.add("hidden");
   step="done";
@@ -460,9 +479,12 @@ function urgent(level="urgent"){
 function recommend(){
   {
     const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-    if(safety){
-      urgent(safety);
+    if(safety==="emergency"){
+      urgent("emergency");
       return;
+    }
+    if(safety==="urgent" && !potentialUrgent){
+      showPotentialUrgentWarning();
     }
   }
 
