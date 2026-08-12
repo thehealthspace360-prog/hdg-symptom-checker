@@ -169,6 +169,13 @@ seek urgent medical help.
 let language = "English";
 let ARTICLES = [];
 
+let conversationStep = "main_symptom";
+
+let conversationData = {
+  mainSymptom: "",
+  duration: "",
+  additionalSymptoms: ""
+};
 const STOP_WORDS = new Set([
   "i","a","an","the","and","or","but","have","has","had","been",
   "for","of","to","my","me","also","with","is","are","am","it",
