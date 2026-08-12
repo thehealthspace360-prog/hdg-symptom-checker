@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ask HDG | Health Decoded Guide</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f6f7f4;
+  color: #222;
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 20px;
+}
+
+.checker {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.08);
+}
+
+.header {
+  background: #1f5b4b;
+  color: white;
+  margin: -28px -28px 24px;
+  padding: 22px 28px;
+  border-radius: 18px 18px 0 0;
+}
+
+h1 {
+  margin: 0 0 5px;
+  font-size: 26px;
+}
+
+.sub {
+  font-size: 14px;
+  opacity: .9;
+}
+
+.language {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.lang-btn {
+  background: white;
+  color: #1f5b4b;
+  border: 1px solid #1f5b4b;
+  border-radius: 20px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.lang-btn.active {
+  background: #1f5b4b;
+  color: white;
+}
+
+textarea {
+  width: 100%;
+  min-height: 95px;
+  border: 1px solid #bbb;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 16px;
+}
+
+.send {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 10px;
+  padding: 14px;
+  background: #d5a515;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.card {
+  margin-top: 20px;
+  padding: 18px;
+  background: #f3f5f1;
+  border-radius: 12px;
+  line-height: 1.55;
+  border-left: 5px solid #1f5b4b;
+}
+
+.urgent {
+  background: #fff1f0;
+  border-left-color: #b42318;
+}
+
+.article {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  padding: 13px;
+  margin-top: 10px;
+}
+
+.article a {
+  color: #1f5b4b;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.small {
+  margin-top: 22px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+}
+</style>
+</head>
+
+<body>
+
+<div class="wrap">
+<div class="checker">
+
+<div class="header">
+  <h1>Health Decoded Guide</h1>
+  <div class="sub">Ask HDG · Health education, not diagnosis</div>
+</div>
+
+<div class="language">
+  <button id="englishBtn" class="lang-btn active"
+    onclick="setLanguage('English')">English</button>
+
+  <button id="pidginBtn" class="lang-btn"
+    onclick="setLanguage('Pidgin')">Pidgin</button>
+</div>
+
+<p id="prompt">
+  What health concern would you like help understanding today?
+  Describe it naturally.
+</p>
+
+<textarea id="symptom"
+placeholder="e.g. I have been coughing for 3 days and I also have a fever"></textarea>
+
+<button class="send" onclick="checkSymptoms()">Ask HDG</button>
+
+<div id="result"></div>
+
+<div class="small">
+HDG provides general health education and navigation only.
+It does not diagnose medical conditions or replace assessment by a
+qualified healthcare professional. If symptoms may be an emergency,
+seek urgent medical help.
+</div>
+
+</div>
+</div>
+
+<script>
+
+let language = "English";
+let ARTICLES = [];
+
+const STOP_WORDS = new Set([
+  "i","a","an","the","and","or","but","have","has","had","been",
+  "for","of","to","my","me","also","with","is","are","am","it",
+  "in","on","at","this","that","from","do","does","did","very",
+  "just","some","day","days","week","weeks"
+]);
+
+const EMERGENCY_PATTERNS = [
+  "cannot breathe",
+  "can't breathe",
+  "severe shortness of breath",
+  "crushing chest pain",
+  "severe chest pain",
+  "unconscious",
+  "not waking",
+  "face droop",
+  "slurred speech",
+  "one sided weakness",
+  "one-sided weakness",
+  "heavy bleeding",
+  "kill myself",
+  "harm myself",
+  "suicidal"
+];
+
+function normalize(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseIndex(text) {
+
+  const blocks = text.split(
+    /(?=^ARTICLE\s+\d+\s*$)/gmi
+  );
+
+  return blocks.map(block => {
+
+    const fields = {};
+
+    block.split(/\r?\n/).forEach(line => {
+
+      const match = line.match(
+        /^([A-Z][A-Z _/-]+):\s*(.*)$/
+      );
+
+      if (match) {
+        fields[match[1].trim()] = match[2].trim();
+      }
+    });
+
+    const title = fields["TITLE"] || "";
+    const url = fields["URL"] || "";
+    const articleLanguage = fields["LANGUAGE"] || "";
+
+    if (!title || !url) return null;
+
+    return {
+      title,
+      url,
+      language: articleLanguage,
+      category: fields["CATEGORY"] || "",
+      emergency:
+        fields["EMERGENCY FLAG"] ||
+        fields["EMERGENCY"] ||
+        "",
+      searchable: normalize(block)
+    };
+
+  }).filter(Boolean);
+}
+
+async function loadArticles() {
+
+  try {
+
+    const response = await fetch(
+      "./HDG_Public_Article_Index.txt"
+    );
+
+    if (!response.ok) {
+      throw new Error("Could not load HDG article index");
+    }
+
+    const text = await response.text();
+
+    ARTICLES = parseIndex(text);
+
+    console.log(
+      "HDG index loaded:",
+      ARTICLES.length,
+      "articles"
+    );
+
+  } catch (error) {
+
+    console.error(
+      "HDG_INDEX_ERROR",
+      error
+    );
+  }
+}
+
+loadArticles();
+
+function setLanguage(lang) {
+
+  language = lang;
+
+  document
+    .getElementById("englishBtn")
+    .classList.toggle(
+      "active",
+      lang === "English"
+    );
+
+  document
+    .getElementById("pidginBtn")
+    .classList.toggle(
+      "active",
+      lang === "Pidgin"
+    );
+
+  if (lang === "Pidgin") {
+
+    document.getElementById("prompt").textContent =
+      "Wetin dey worry you today? You fit explain am the way you normally talk.";
+
+    document.getElementById("symptom").placeholder =
+      "e.g. I don dey cough for 3 days and fever dey worry me";
+
+  } else {
+
+    document.getElementById("prompt").textContent =
+      "What health concern would you like help understanding today? Describe it naturally.";
+
+    document.getElementById("symptom").placeholder =
+      "e.g. I have been coughing for 3 days and I also have a fever";
+  }
+
+  document.getElementById("result").innerHTML = "";
+}
+
+function isEmergency(text) {
+
+  const clean = normalize(text);
+
+  return EMERGENCY_PATTERNS.some(
+    pattern => clean.includes(normalize(pattern))
+  );
+}
+
+function getSearchWords(text) {
+
+  return normalize(text)
+    .split(" ")
+    .filter(word =>
+      word.length > 2 &&
+      !STOP_WORDS.has(word)
+    );
+}
+
+function scoreArticle(article, words) {
+
+  let score = 0;
+
+  const title = normalize(article.title);
+  const category = normalize(article.category);
+  const searchable = article.searchable;
+
+  words.forEach(word => {
+
+    if (title.includes(word)) {
+      score += 8;
+    }
+
+    if (category.includes(word)) {
+      score += 4;
+    }
+
+    if (searchable.includes(word)) {
+      score += 1;
+    }
+
+  });
+
+  return score;
+}
+
+function findArticles(query) {
+
+  const words = getSearchWords(query);
+
+  let preferred = ARTICLES.filter(article =>
+    normalize(article.language) ===
+    normalize(language)
+  );
+
+  if (!preferred.length) {
+    preferred = ARTICLES;
+  }
+
+  let matches = preferred
+    .map(article => ({
+      ...article,
+      score: scoreArticle(article, words)
+    }))
+    .filter(article => article.score > 0)
+    .sort((a,b) => b.score - a.score);
+
+  if (
+    language === "Pidgin" &&
+    matches.length < 3
+  ) {
+
+    const english = ARTICLES
+      .filter(article =>
+        normalize(article.language) === "english"
+      )
+      .map(article => ({
+        ...article,
+        score: scoreArticle(article, words)
+      }))
+      .filter(article => article.score > 0)
+      .sort((a,b) => b.score - a.score);
+
+    matches = [...matches, ...english];
+  }
+
+  const seen = new Set();
+
+  return matches.filter(article => {
+
+    if (seen.has(article.url)) {
+      return false;
+    }
+
+    seen.add(article.url);
+    return true;
+
+  }).slice(0,3);
+}
+
+function checkSymptoms() {
+
+  const input =
+    document.getElementById("symptom").value.trim();
+
+  const result =
+    document.getElementById("result");
+
+  if (!input) {
+
+    result.innerHTML = `
+      <div class="card">
+      ${
+        language === "Pidgin"
+        ? "Abeg tell us wetin dey worry you first."
+        : "Please describe what is bothering you first."
+      }
+      </div>
+    `;
+
+    return;
+  }
+
+  if (isEmergency(input)) {
+
+    result.innerHTML = `
+      <div class="card urgent">
+
+      <strong>
+      ${
+        language === "Pidgin"
+        ? "⚠️ Wetin you describe fit need urgent medical attention."
+        : "⚠️ What you described may need urgent medical attention."
+      }
+      </strong>
+
+      <br><br>
+
+      ${
+        language === "Pidgin"
+        ? "Please seek emergency medical help now or contact your local emergency service. No depend on Ask HDG for emergency."
+        : "Please seek emergency medical help now or contact your local emergency service. Do not rely on Ask HDG for emergency care."
+      }
+
+      </div>
+    `;
+
+    return;
+  }
+
+  if (!ARTICLES.length) {
+
+    result.innerHTML = `
+      <div class="card">
+      HDG article index is still loading.
+      Please try again in a moment.
+      </div>
+    `;
+
+    return;
+  }
+
+  const matches = findArticles(input);
+
+  if (!matches.length) {
+
+    result.innerHTML = `
+      <div class="card">
+      ${
+        language === "Pidgin"
+        ? "I no find close HDG article for wetin you describe yet."
+        : "I couldn't find a close HDG article for what you described yet."
+      }
+      </div>
+    `;
+
+    return;
+  }
+
+  let html = `
+    <div class="card">
+
+    <strong>
+    ${
+      language === "Pidgin"
+      ? "These HDG articles fit help you understand wetin you describe:"
+      : "These HDG articles may help you understand what you described:"
+    }
+    </strong>
+  `;
+
+  matches.forEach(article => {
+
+    html += `
+      <div class="article">
+
+      <a
+        href="${article.url}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        ${article.title}
+      </a>
+
+      ${
+        article.category
+        ? `<br><small>${article.category}</small>`
+        : ""
+      }
+
+      </div>
+    `;
+  });
+
+  html += `
+    <br>
+    ${
+      language === "Pidgin"
+      ? "These recommendations no be diagnosis. If your symptoms dey worse or you dey worried, seek medical assessment."
+      : "These recommendations are not a diagnosis. If symptoms are worsening or concerning, seek medical assessment."
+    }
+
+    </div>
+  `;
+
+  result.innerHTML = html;
+}
+
+</script>
+
+</body>
+</html>
