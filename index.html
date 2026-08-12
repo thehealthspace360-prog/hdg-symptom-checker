@@ -6,32 +6,41 @@
 <title>Ask HDG | Health Decoded Guide</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f6f7f4;color:#222}
-.wrap{max-width:760px;margin:36px auto;padding:18px}
+:root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+.wrap{max-width:780px;margin:36px auto;padding:18px}
 .checker{background:#fff;border-radius:18px;padding:28px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
-.header{background:#1f5b4b;color:#fff;margin:-28px -28px 24px;padding:22px 28px;border-radius:18px 18px 0 0}
+.header{background:var(--green);color:#fff;margin:-28px -28px 24px;padding:22px 28px;border-radius:18px 18px 0 0}
 h1{margin:0 0 5px;font-size:26px}.sub{font-size:14px;opacity:.92}
-.language{display:flex;gap:8px;margin-bottom:20px}
-.lang-btn,.choice,.secondary{background:#fff;color:#1f5b4b;border:1px solid #1f5b4b;border-radius:20px;padding:9px 16px;cursor:pointer;font-size:14px}
-.lang-btn.active,.choice:hover{background:#1f5b4b;color:#fff}
+.language{display:flex;gap:8px;margin-bottom:16px}
+.lang-btn,.choice,.secondary{background:#fff;color:var(--green);border:1px solid var(--green);border-radius:20px;padding:9px 16px;cursor:pointer;font-size:14px}
+.lang-btn.active,.choice:hover{background:var(--green);color:#fff}
+.status{font-size:12px;color:var(--muted);margin:0 0 14px}
 .question{margin:0 0 10px;line-height:1.45}
-textarea{width:100%;min-height:95px;border:1px solid #bbb;border-radius:10px;padding:14px;font-size:16px;resize:vertical}
-.send{width:100%;margin-top:12px;border:0;border-radius:10px;padding:14px;background:#d5a515;font-size:16px;font-weight:bold;cursor:pointer}
-.card{margin-top:18px;padding:18px;background:#f3f5f1;border-radius:12px;line-height:1.55;border-left:5px solid #1f5b4b}
-.urgent{background:#fff1f0;border-left-color:#b42318}
-.info{background:#fff9e6;border-left-color:#d5a515}
-.choices{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.choice{border-radius:9px}
-.summary-row{margin:7px 0}.article{background:#fff;border:1px solid #ddd;border-radius:9px;padding:13px;margin-top:10px}
-.article a{color:#1f5b4b;font-weight:bold;text-decoration:none}.article a:hover{text-decoration:underline}
-.muted{color:#666;font-size:13px}.small{margin-top:22px;font-size:12px;color:#666;line-height:1.5}
+textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;padding:14px;font-size:16px;resize:vertical}
+.send{width:100%;margin-top:12px;border:0;border-radius:10px;padding:14px;background:var(--gold);font-size:16px;font-weight:bold;cursor:pointer}
+.send:disabled{opacity:.55}
+.card{margin-top:18px;padding:18px;background:#f3f5f1;border-radius:12px;line-height:1.55;border-left:5px solid var(--green)}
+.card.urgent{background:#fff1f0;border-left-color:var(--red)}
+.card.caution{background:#fff8e6;border-left-color:var(--amber)}
+.choices{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
+.choice{border-radius:9px}
+.summary-row{margin:7px 0}
+.article{background:#fff;border:1px solid #ddd;border-radius:9px;padding:13px;margin-top:10px}
+.article a{color:var(--green);font-weight:bold;text-decoration:none}.article a:hover{text-decoration:underline}
+.muted{color:var(--muted);font-size:13px}.small{margin-top:22px;font-size:12px;color:var(--muted);line-height:1.5}
 .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.secondary{border-radius:9px}.hidden{display:none}
-.status{font-size:12px;color:#666;margin:0 0 12px}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;margin-bottom:8px}
+.badge.red{background:#fee4e2;color:#912018}.badge.amber{background:#fff0c2;color:#7a4a00}.badge.green{background:#e4f2ec;color:#155544}
 @media(max-width:600px){.wrap{margin:0;padding:0}.checker{border-radius:0;min-height:100vh}.header{border-radius:0}}
 </style>
 </head>
 <body>
 <div class="wrap"><div class="checker">
-  <div class="header"><h1>Health Decoded Guide</h1><div class="sub">Ask HDG · Health education, not diagnosis</div></div>
+  <div class="header">
+    <h1>Health Decoded Guide</h1>
+    <div class="sub">Ask HDG · Health education, not diagnosis</div>
+  </div>
 
   <div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
@@ -48,7 +57,7 @@ textarea{width:100%;min-height:95px;border:1px solid #bbb;border-radius:10px;pad
   </div>
 
   <div class="small">
-    HDG provides general health education and navigation only. It does not diagnose medical conditions or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
+    HDG provides general health education and navigation only. It does not diagnose, rule out medical conditions, or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
   </div>
 </div></div>
 
@@ -58,116 +67,269 @@ textarea{width:100%;min-height:95px;border:1px solid #bbb;border-radius:10px;pad
 let language="English";
 let ARTICLES=[];
 let step="main";
-let potentialUrgent = false;
-let data={main:"",duration:"",patient:"",severity:"",other:""};
+let data=freshData();
+let targetedQueue=[];
+
+function freshData(){
+  return {
+    main:"",
+    duration:"",
+    patient:"",
+    severity:"",
+    other:"",
+    family:"general",
+    targeted:{},
+    potentialUrgent:false
+  };
+}
 
 const COPY={
   English:{
     qMain:"What health concern would you like help understanding today? Describe it naturally.",
-    phMain:"e.g. I have been coughing for 3 days and I also have a fever",
+    phMain:"e.g. chest pain, cough and fever, severe headache, breathing difficulty",
     qDuration:"When did this start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qPatient:"Is this for an adult or a child?",
-    qSeverity:"How severe is it?",
+    qSeverity:"How severe is it right now?",
     qOther:"Any other symptoms?",
-    phOther:'e.g. fever, vomiting, headache — or type "No"',
-    review:"Let's review your symptoms:",
+    phOther:'e.g. fever, vomiting, sweating, weakness — or type "No"',
+    review:"Let's review what you told us:",
     correct:"Does this summary look correct?",
     adult:"Adult", child:"Child", mild:"Mild", moderate:"Moderate", severe:"Severe",
-    yes:"Yes", no:"No", retry:"Would you like to try again?",
-    rec:"Recommended HDG articles:",
+    yes:"Yes", no:"No", unsure:"Not sure", retry:"Try again",
+    rec:"Recommended HDG articles",
     noMatch:"I couldn't find a close HDG article for what you described yet.",
-    general:"Based on your answers, watch your symptoms, stay hydrated and rest where appropriate, and seek medical assessment if symptoms worsen, become severe, or concern you.",
     helpful:"Was this information useful?",
-    thanks:"Take care and get well soon. If you have more questions, you can restart Ask HDG.",
-    notHelpful:"Sorry this wasn't quite what you needed. You can try again and describe the concern differently.",
-    urgentTitle:"⚠️ What you described may need urgent medical attention.",
-    urgentBody:"Please seek urgent medical help now or contact your local emergency service. Do not rely on Ask HDG to delay emergency care.",
-    empty:"Please describe what is bothering you first."
+    thanks:"Take care. You can restart Ask HDG if you have another health question.",
+    notHelpful:"Sorry this wasn't quite what you needed.",
+    emergencyTitle:"⚠️ This could be an emergency.",
+    emergencyBody:"Please contact your local emergency service now or seek emergency medical care. Do not continue using Ask HDG to delay emergency care.",
+    urgentTitle:"⚠️ This may need urgent medical assessment.",
+    urgentBody:"Based on the combination of symptoms you entered, please seek prompt in-person medical assessment. If symptoms become severe, rapidly worsen, the person collapses, cannot breathe, or you think this is an emergency, contact emergency services.",
+    greenBody:"No immediate emergency pattern was identified from the answers you entered. This does not rule out a serious condition. Seek medical assessment if symptoms are worsening, persistent, severe, or concerning.",
+    empty:"Please describe what is bothering you first.",
+    warning:"Some symptoms you entered can be serious. Ask HDG will ask a few short questions to understand the safety picture better. Do not delay emergency care if the person is very unwell or worsening quickly."
   },
   Pidgin:{
     qMain:"Wetin dey worry you today? You fit explain am the way you normally talk.",
-    phMain:"e.g. I don dey cough for 3 days and fever dey worry me",
+    phMain:"e.g. chest pain, cough and fever, serious headache, breathing problem",
     qDuration:"Na when e start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qPatient:"Na for adult or pikin?",
-    qSeverity:"How e strong reach?",
+    qSeverity:"How e strong reach now?",
     qOther:"Any other symptom?",
-    phOther:'e.g. fever, vomit, headache — or type "No"',
-    review:"Make we run check your symptoms:",
+    phOther:'e.g. fever, vomit, sweat, weakness — or type "No"',
+    review:"Make we run check wetin you tell us:",
     correct:"Na so e be?",
     adult:"Adult", child:"Pikin", mild:"Small", moderate:"Medium", severe:"Serious",
-    yes:"Yes", no:"No", retry:"Make u try again?",
-    rec:"HDG article wey fit help you:",
+    yes:"Yes", no:"No", unsure:"I no sure", retry:"Try again",
+    rec:"HDG article wey fit help",
     noMatch:"I no find close HDG article for wetin you describe yet.",
-    general:"Based on your answers, make you watch your symptoms, drink enough water and rest where e make sense. If e dey worse, e serious, or you dey worried, abeg seek medical assessment.",
-    helpful:"Dis info help you?",
-    thanks:"Take care and get well soon. If you get another question, you fit start Ask HDG again.",
-    notHelpful:"Sorry say this one no really help you. You fit try again and describe wetin dey worry you another way.",
-    urgentTitle:"⚠️ Wetin you describe fit need urgent medical attention.",
-    urgentBody:"Abeg seek urgent medical help now or contact your local emergency service. No depend on Ask HDG to delay emergency care.",
-    empty:"Abeg tell us wetin dey worry you first."
+    helpful:"Dis information help you?",
+    thanks:"Take care. You fit restart Ask HDG if you get another health question.",
+    notHelpful:"Sorry say this one no really help you.",
+    emergencyTitle:"⚠️ This one fit be emergency.",
+    emergencyBody:"Abeg contact your local emergency service now or seek emergency medical care. No continue Ask HDG if e go delay emergency care.",
+    urgentTitle:"⚠️ This one fit need urgent medical assessment.",
+    urgentBody:"Based on the combination of symptoms wey you enter, abeg seek prompt in-person medical assessment. If e become serious, dey worsen fast, person collapse, no fit breathe, or you think say na emergency, contact emergency services.",
+    greenBody:"From the answers wey you enter, Ask HDG no detect immediate emergency pattern. This no mean say serious condition no fit dey. Seek medical assessment if symptoms dey worsen, persist, serious, or dey worry you.",
+    empty:"Abeg tell us wetin dey worry you first.",
+    warning:"Some symptoms wey you enter fit serious. Ask HDG go ask small questions to understand the safety picture better. No delay emergency care if the person dey very unwell or dey worsen quickly."
   }
 };
 
-const ALWAYS_URGENT=[
-  "cannot breathe","can't breathe","cant breathe","not breathing","struggling to breathe","gasping",
-  "blue lips","blue tongue","unconscious","not waking","not responding","collapsed",
-  "face droop","slurred speech","one sided weakness","one-sided weakness","sudden weakness one side",
-  "heavy bleeding","bleeding won't stop","bleeding wont stop","choking",
-  "seizure not stopping","seizure lasting more than 5 minutes",
-  "kill myself","harm myself","suicidal","no fit breathe"
+const STOP_WORDS=new Set(
+  "i a an the and or but have has had been for of to my me also with is are am it in on at this that from do does did very just some day days week weeks ago started start since dey don na e wey you your no be fit get adult adults child children pikin baby babies".split(" ")
+);
+
+const IMMEDIATE_DANGER=[
+  "not breathing","cannot breathe","can't breathe","cant breathe","gasping","choking",
+  "not able to get words out","unable to speak because of breathing",
+  "blue lips","blue tongue","grey lips","pale blue or grey",
+  "unconscious","unresponsive","not waking","not responding",
+  "face droop","slurred speech","one sided weakness","one-sided weakness",
+  "bleeding won't stop","bleeding wont stop","uncontrolled bleeding",
+  "seizure lasting more than 5 minutes","seizure over 5 minutes","seizure not stopping",
+  "another seizure without recovering","kill myself","harm myself","suicidal plan","suicide plan",
+  "no fit breathe"
 ];
 
-const URGENT_SYMPTOMS=[
-  "chest pain","chest pressure","chest tightness",
-  "difficulty breathing","shortness of breath","breathless","breathing problem","wheezing badly",
-  "seizure","convulsion","fitting","fainting","passed out","blackout",
-  "confusion","new confusion","severe headache","worst headache","sudden headache",
-  "sudden weakness","weakness one side","face droop","slurred speech",
-  "vomiting blood","blood in vomit","coughing blood","heavy bleeding",
-  "severe abdominal pain","severe tummy pain","severe belly pain",
-  "severe allergic reaction","swollen tongue","swollen throat",
-  "high fever with stiff neck","stiff neck and fever"
+const FAMILY_RULES=[
+  {id:"chest", terms:["chest pain","chest pressure","chest tightness","tight chest","heavy chest","pain in my chest"]},
+  {id:"breathing", terms:["difficulty breathing","shortness of breath","breathless","breathing problem","struggling to breathe","wheezing","noisy breathing"]},
+  {id:"neuro", terms:["severe headache","sudden headache","worst headache","headache","weakness one side","numbness one side","vision loss","slurred speech","face droop"]},
+  {id:"fainting", terms:["fainting","fainted","passed out","blackout","collapsed"]},
+  {id:"bleeding", terms:["heavy bleeding","bleeding","vomiting blood","blood in vomit","coughing blood","blood in stool","black stool"]},
+  {id:"abdominal", terms:["abdominal pain","stomach pain","tummy pain","belly pain","pelvic pain","lower abdominal pain"]},
+  {id:"allergy", terms:["allergic reaction","allergy","swollen tongue","swollen throat","hives","widespread rash","anaphylaxis"]},
+  {id:"fever", terms:["fever","high temperature","hot body","body dey hot","feverish"]},
+  {id:"seizure", terms:["seizure","convulsion","fit","fitting","jerking"]},
+  {id:"mental", terms:["suicidal","suicide","kill myself","harm myself","self harm","self-harm"]},
+  {id:"general", terms:[]}
 ];
 
-const CHILD_HIGH_RISK=[
-  "difficulty breathing","shortness of breath","struggling to breathe","breathing problem",
-  "very sleepy","hard to wake","not waking","not drinking","not feeding",
-  "blue lips","seizure","convulsion","floppy","limp"
-];
+const TARGETED={
+  chest:[
+    {id:"chest_sudden",qE:"Did the chest pain or discomfort start suddenly?",qP:"Chest pain or discomfort start suddenly?",options:["yes","no","unsure"]},
+    {id:"chest_quality",qE:"Does it feel like pressure, squeezing, tightness or heaviness?",qP:"E feel like pressure, squeezing, tightness or heaviness?",options:["yes","no","unsure"]},
+    {id:"chest_spread",qE:"Does the pain spread to an arm, back, neck or jaw?",qP:"The pain dey spread go arm, back, neck or jaw?",options:["yes","no","unsure"]},
+    {id:"chest_assoc",qE:"Are there sweating, nausea, light-headedness or shortness of breath with it?",qP:"Sweat, nausea, light-headedness or shortness of breath join am?",options:["yes","no","unsure"]}
+  ],
+  breathing:[
+    {id:"breath_speak",qE:"Can the person speak in full sentences without gasping for breath?",qP:"Person fit talk full sentence without gasping for breath?",options:["yes","no","unsure"]},
+    {id:"breath_colour",qE:"Are the lips or skin turning blue, grey or very pale?",qP:"Lips or skin don turn blue, grey or very pale?",options:["yes","no","unsure"]},
+    {id:"breath_chest",qE:"Is there chest tightness/heaviness or chest pain too?",qP:"Chest tight/heavy or chest pain join am?",options:["yes","no","unsure"]},
+    {id:"breath_confusion",qE:"Is there sudden confusion, extreme drowsiness or fainting?",qP:"Sudden confusion, too much sleepiness or fainting dey?",options:["yes","no","unsure"]}
+  ],
+  neuro:[
+    {id:"neuro_sudden",qE:"Did the headache or neurological symptom start suddenly and become severe very quickly?",qP:"Headache or nerve symptom start suddenly and become serious very fast?",options:["yes","no","unsure"]},
+    {id:"neuro_fast",qE:"Is there face drooping, new one-sided weakness/numbness or trouble speaking?",qP:"Face droop, one-side weakness/numbness or trouble to talk dey?",options:["yes","no","unsure"]},
+    {id:"neuro_vision",qE:"Is there new loss of vision, severe confusion or loss of balance?",qP:"New vision loss, serious confusion or loss of balance dey?",options:["yes","no","unsure"]},
+    {id:"neuro_fever",qE:"Is there fever with a stiff neck or a rash that does not fade when pressed?",qP:"Fever with stiff neck or rash wey no fade when you press am dey?",options:["yes","no","unsure"]}
+  ],
+  fainting:[
+    {id:"faint_recovered",qE:"Has the person fully recovered and is responding normally now?",qP:"Person don fully recover and dey respond normally now?",options:["yes","no","unsure"]},
+    {id:"faint_chest",qE:"Was there chest pain, strong palpitations or shortness of breath around the faint?",qP:"Chest pain, strong heartbeat or shortness of breath join the faint?",options:["yes","no","unsure"]},
+    {id:"faint_neuro",qE:"Was there a severe headache, one-sided weakness, speech trouble or seizure?",qP:"Serious headache, one-side weakness, speech problem or seizure join am?",options:["yes","no","unsure"]},
+    {id:"faint_injury",qE:"Was there a significant injury during the collapse?",qP:"Person get serious injury when e collapse?",options:["yes","no","unsure"]}
+  ],
+  bleeding:[
+    {id:"bleed_stop",qE:"Is the bleeding heavy or difficult to stop?",qP:"Bleeding plenty or e hard to stop?",options:["yes","no","unsure"]},
+    {id:"bleed_source",qE:"Is there vomiting blood, coughing blood, black stool or a lot of blood in stool?",qP:"Vomiting blood, coughing blood, black stool or plenty blood for stool dey?",options:["yes","no","unsure"]},
+    {id:"bleed_faint",qE:"Is there fainting, severe dizziness, confusion or extreme weakness?",qP:"Fainting, serious dizziness, confusion or extreme weakness dey?",options:["yes","no","unsure"]},
+    {id:"bleed_preg",qE:"If this is for an adult who could be pregnant: is pregnancy possible or confirmed?",qP:"If na adult wey pregnancy fit concern: pregnancy possible or confirmed?",options:["yes","no","na"]}
+  ],
+  abdominal:[
+    {id:"abd_sudden",qE:"Is the abdominal or pelvic pain sudden and severe?",qP:"Abdominal or pelvic pain start suddenly and e serious?",options:["yes","no","unsure"]},
+    {id:"abd_faint",qE:"Is there severe dizziness, fainting, marked weakness or looking very pale?",qP:"Serious dizziness, fainting, big weakness or person look very pale?",options:["yes","no","unsure"]},
+    {id:"abd_preg",qE:"If pregnancy could be possible: is pregnancy possible or confirmed?",qP:"If pregnancy fit possible: pregnancy possible or confirmed?",options:["yes","no","na"]},
+    {id:"abd_bleed",qE:"Is there vaginal bleeding, shoulder-tip pain or repeated vomiting?",qP:"Vaginal bleeding, shoulder-tip pain or repeated vomiting dey?",options:["yes","no","na"]}
+  ],
+  allergy:[
+    {id:"allergy_airway",qE:"Is there swelling of the lips, tongue, mouth or throat?",qP:"Lips, tongue, mouth or throat dey swell?",options:["yes","no","unsure"]},
+    {id:"allergy_breath",qE:"Is there trouble breathing, wheezing, choking/gasping or trouble swallowing?",qP:"Breathing problem, wheeze, choking/gasping or trouble to swallow dey?",options:["yes","no","unsure"]},
+    {id:"allergy_dizzy",qE:"Is there sudden severe dizziness, confusion, collapse or extreme drowsiness?",qP:"Sudden serious dizziness, confusion, collapse or too much drowsiness dey?",options:["yes","no","unsure"]}
+  ],
+  fever:[
+    {id:"fever_confusion",qE:"Is there new confusion, unusual drowsiness or difficulty waking?",qP:"New confusion, unusual sleepiness or hard to wake dey?",options:["yes","no","unsure"]},
+    {id:"fever_breath",qE:"Is there breathing difficulty or very fast breathing?",qP:"Breathing difficulty or very fast breathing dey?",options:["yes","no","unsure"]},
+    {id:"fever_neck",qE:"Is there a stiff neck, severe headache or a rash that does not fade when pressed?",qP:"Stiff neck, serious headache or rash wey no fade when you press am dey?",options:["yes","no","unsure"]},
+    {id:"fever_child",qE:"For a child: are they very sleepy, floppy, not drinking/feeding, or passing much less urine?",qP:"For pikin: e too sleepy, floppy, no dey drink/feed, or urine reduce well-well?",options:["yes","no","na"]}
+  ],
+  seizure:[
+    {id:"seizure_first",qE:"Is this the first seizure or fit?",qP:"Na first seizure or fit be this?",options:["yes","no","unsure"]},
+    {id:"seizure_time",qE:"Did it last more than 5 minutes?",qP:"E pass 5 minutes?",options:["yes","no","unsure"]},
+    {id:"seizure_repeat",qE:"Were there repeated seizures without fully recovering between them?",qP:"Seizure repeat before person fully recover?",options:["yes","no","unsure"]},
+    {id:"seizure_recover",qE:"Has the person recovered and is responding normally now?",qP:"Person don recover and dey respond normally now?",options:["yes","no","unsure"]}
+  ],
+  mental:[
+    {id:"mental_now",qE:"Is there a current intention or plan to harm yourself or someone else?",qP:"Plan or intention dey now to harm yourself or another person?",options:["yes","no","unsure"]},
+    {id:"mental_attempt",qE:"Has there been a recent attempt, overdose or serious self-harm?",qP:"Recent attempt, overdose or serious self-harm happen?",options:["yes","no","unsure"]}
+  ],
+  general:[]
+};
 
-const STOP=new Set("i a an the and or but have has had been for of to my me also with is are am it in on at this that from do does did very just some day days week weeks ago started start since dey don na e wey you your me no be fit get".split(" "));
+function norm(s){return String(s||"").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu," ").replace(/\s+/g," ").trim()}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function includesAny(text,arr){const n=norm(text);return arr.some(x=>n.includes(norm(x)))}
 
-function norm(s){
-  return String(s||"").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu," ").replace(/\s+/g," ").trim();
-}
-
-function esc(s){
-  return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-}
-
-function phraseIn(text, list){
+function detectFamily(text){
   const n=norm(text);
-  return list.some(x=>n.includes(norm(x)));
+  let best={id:"general",score:0};
+  FAMILY_RULES.forEach(f=>{
+    let score=0;
+    f.terms.forEach(t=>{if(n.includes(norm(t))) score+=norm(t).split(" ").length;});
+    if(score>best.score) best={id:f.id,score};
+  });
+  return best.id;
 }
 
-function emergencyStatus(text, severity="", patient=""){
-  const n = norm(text);
+function immediateDanger(text){
+  return includesAny(text,IMMEDIATE_DANGER);
+}
 
-  if(phraseIn(n, ALWAYS_URGENT)) return "emergency";
-  if(phraseIn(n, URGENT_SYMPTOMS)) return "urgent";
-  if(patient==="child" && phraseIn(n, CHILD_HIGH_RISK)) return "urgent";
+function answer(id){return data.targeted[id]||""}
 
-  if(severity==="severe"){
-    const seriousWords=[
-      "pain","bleeding","breathing","breath","fever","vomit","headache",
-      "weakness","dizzy","dizziness","confusion","swelling","allergic",
-      "dehydration","diarrhea","diarrhoea"
-    ];
-    if(seriousWords.some(w=>n.includes(w))) return "urgent";
+function safetyDisposition(){
+  const ctx=norm([data.main,data.other].filter(Boolean).join(" "));
+
+  if(immediateDanger(ctx)) return "emergency";
+
+  // Targeted red-flag combinations.
+  if(data.family==="chest"){
+    if(answer("chest_spread")==="yes") return "emergency";
+    if(answer("chest_quality")==="yes" && answer("chest_assoc")==="yes") return "emergency";
+    if(answer("chest_sudden")==="yes" && answer("chest_assoc")==="yes") return "urgent";
   }
-  return "";
+
+  if(data.family==="breathing"){
+    if(answer("breath_speak")==="no") return "emergency";
+    if(answer("breath_colour")==="yes") return "emergency";
+    if(answer("breath_confusion")==="yes") return "emergency";
+    if(answer("breath_chest")==="yes") return "urgent";
+  }
+
+  if(data.family==="neuro"){
+    if(answer("neuro_fast")==="yes") return "emergency";
+    if(answer("neuro_sudden")==="yes") return "emergency";
+    if(answer("neuro_vision")==="yes") return "urgent";
+    if(answer("neuro_fever")==="yes") return "urgent";
+  }
+
+  if(data.family==="fainting"){
+    if(answer("faint_recovered")==="no") return "emergency";
+    if(answer("faint_chest")==="yes" || answer("faint_neuro")==="yes") return "urgent";
+    if(answer("faint_injury")==="yes") return "urgent";
+  }
+
+  if(data.family==="bleeding"){
+    if(answer("bleed_stop")==="yes") return "emergency";
+    if(answer("bleed_source")==="yes" && answer("bleed_faint")==="yes") return "emergency";
+    if(answer("bleed_source")==="yes" || answer("bleed_faint")==="yes") return "urgent";
+  }
+
+  if(data.family==="abdominal"){
+    if(answer("abd_sudden")==="yes" && answer("abd_faint")==="yes") return "emergency";
+    if(answer("abd_preg")==="yes" && answer("abd_sudden")==="yes") return "urgent";
+    if(answer("abd_preg")==="yes" && answer("abd_bleed")==="yes") return "urgent";
+    if(answer("abd_sudden")==="yes") return "urgent";
+  }
+
+  if(data.family==="allergy"){
+    if(answer("allergy_airway")==="yes" && answer("allergy_breath")==="yes") return "emergency";
+    if(answer("allergy_breath")==="yes" || answer("allergy_dizzy")==="yes") return "emergency";
+    if(answer("allergy_airway")==="yes") return "urgent";
+  }
+
+  if(data.family==="fever"){
+    if(answer("fever_confusion")==="yes") return "urgent";
+    if(answer("fever_breath")==="yes") return "urgent";
+    if(answer("fever_neck")==="yes") return "urgent";
+    if(data.patient==="child" && answer("fever_child")==="yes") return "urgent";
+  }
+
+  if(data.family==="seizure"){
+    if(answer("seizure_time")==="yes") return "emergency";
+    if(answer("seizure_repeat")==="yes") return "emergency";
+    if(answer("seizure_recover")==="no") return "emergency";
+    if(answer("seizure_first")==="yes") return "emergency";
+  }
+
+  if(data.family==="mental"){
+    if(answer("mental_now")==="yes" || answer("mental_attempt")==="yes") return "emergency";
+    if(answer("mental_now")==="unsure") return "urgent";
+  }
+
+  // Generic conservative reassessment using the full picture.
+  if(data.severity==="severe"){
+    if(includesAny(ctx,["chest pain","difficulty breathing","shortness of breath","severe headache","abdominal pain","pelvic pain","bleeding","fainting","seizure","confusion"])) return "urgent";
+  }
+
+  if(data.patient==="child"){
+    if(includesAny(ctx,["difficulty breathing","shortness of breath","very sleepy","hard to wake","not drinking","not feeding","floppy","limp","seizure"])) return "urgent";
+  }
+
+  return "education";
 }
 
 function parseIndex(text){
@@ -179,12 +341,8 @@ function parseIndex(text){
     });
     if(!f.TITLE||!f.URL) return null;
     return {
-      title:f.TITLE,
-      url:f.URL,
-      language:f.LANGUAGE||"",
-      category:f.CATEGORY||"",
-      emergency:f["EMERGENCY FLAG"]||f.EMERGENCY||"",
-      keywords:f.KEYWORDS||"",
+      title:f.TITLE,url:f.URL,language:f.LANGUAGE||"",category:f.CATEGORY||"",
+      emergency:f["EMERGENCY FLAG"]||f.EMERGENCY||"",keywords:f.KEYWORDS||"",
       searchable:norm([f.TITLE,f.CATEGORY,f.KEYWORDS].join(" "))
     };
   }).filter(Boolean);
@@ -192,79 +350,63 @@ function parseIndex(text){
 
 async function loadArticles(){
   const status=document.getElementById("indexStatus");
-  const candidates=[
-    "./HDG_Public_Article_Index.txt",
-    "./HDG_Public_Article_Index(1).txt"
-  ];
-
+  const candidates=["./HDG_Public_Article_Index.txt","./HDG_Public_Article_Index(1).txt"];
   for(const path of candidates){
     try{
       const r=await fetch(path,{cache:"no-store"});
       if(!r.ok) continue;
-      const text=await r.text();
-      const parsed=parseIndex(text);
+      const parsed=parseIndex(await r.text());
       if(parsed.length){
         ARTICLES=parsed;
         status.textContent=`HDG article index ready · ${ARTICLES.length} articles`;
         console.log("HDG index loaded:",ARTICLES.length,"articles from",path);
         return;
       }
-    }catch(e){
-      console.warn("Index candidate failed:",path,e);
-    }
+    }catch(e){console.warn("Index candidate failed:",path,e);}
   }
-
   status.textContent="HDG article index could not load.";
   console.error("HDG_INDEX_ERROR: no valid index file found");
 }
 
-function words(s){
-  return [...new Set(norm(s).split(" ").filter(w=>w.length>2&&!STOP.has(w)))];
+function searchWords(s){
+  return [...new Set(norm(s).split(" ").filter(w=>w.length>2&&!STOP_WORDS.has(w)))];
 }
 
-function score(a,q){
-  const ws=words(q);
-  const title=norm(a.title);
-  const keys=norm(a.keywords);
-  const cat=norm(a.category);
-  const nq=norm(q);
+function scoreArticle(a,q){
+  const ws=searchWords(q);
+  const title=norm(a.title), keys=norm(a.keywords), cat=norm(a.category), nq=norm(q);
   let score=0;
-
   ws.forEach(w=>{
-    if(title===w) score+=120;
-    else if(title.startsWith(w+" ")) score+=45;
-    else if(title.includes(" "+w+" ") || title.endsWith(" "+w)) score+=28;
+    if(title===w) score+=140;
+    else if(title.startsWith(w+" ")) score+=55;
+    else if(title.includes(" "+w+" ") || title.endsWith(" "+w)) score+=32;
     else if(title.includes(w)) score+=18;
-
-    if(keys.includes(w)) score+=6;
+    if(keys.includes(w)) score+=7;
     if(cat.includes(w)) score+=2;
   });
+  if(title && nq.includes(title)) score+=160;
+  const wc=title.split(" ").filter(Boolean).length;
+  if(wc<=3) score+=45;
+  else if(wc<=5) score+=15;
+  score-=Math.max(0,wc-6)*2;
+  if(/\bvs\b/.test(title) && !/\bvs\b/.test(nq)) score-=55;
 
-  if(title && nq.includes(title)) score+=140;
-
-  const titleWordCount=title.split(" ").filter(Boolean).length;
-  if(titleWordCount<=3) score+=35;
-  else if(titleWordCount<=5) score+=12;
-
-  score-=Math.max(0,titleWordCount-6)*2;
-  if(/vs/.test(title) && !/vs/.test(nq)) score-=45;
-
-  if(ws.length>=1 && ws.filter(w=>title.includes(w)).length===0) score-=20;
-
+  if(data.patient==="child"){
+    if(cat.includes("children")||title.includes("child")||title.includes("children")||title.includes("pikin")||title.includes("baby")) score+=22;
+  }else if(data.patient==="adult"){
+    if(cat.includes("children")||title.includes("child")||title.includes("children")||title.includes("pikin")||title.includes("baby")) score-=40;
+  }
   return score;
 }
 
-function findArticles(q){
+function findArticles(q,limit=3){
   let pref=ARTICLES.filter(a=>norm(a.language)===norm(language));
   if(!pref.length) pref=ARTICLES;
-
-  let ranked=pref
-    .map(a=>({...a,score:score(a,q)}))
+  const ranked=pref.map(a=>({...a,score:scoreArticle(a,q)}))
     .filter(a=>a.score>0)
     .sort((a,b)=>b.score-a.score);
-
   const seen=new Set();
-  return ranked.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,3);
+  return ranked.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
 }
 
 const chat=document.getElementById("chat");
@@ -273,274 +415,183 @@ const input=document.getElementById("symptom");
 const ask=document.getElementById("askBtn");
 const inputArea=document.getElementById("inputArea");
 
-function C(){return COPY[language];}
-
-function showCard(html,urgent=false,info=false){
-  chat.innerHTML=`<div class="card${urgent?" urgent":""}${info?" info":""}">${html}</div>`;
+function C(){return COPY[language]}
+function showCard(html,type="normal"){
+  const cls=type==="emergency"?" urgent":type==="urgent"?" caution":"";
+  chat.innerHTML=`<div class="card${cls}">${html}</div>`;
 }
-
 function setQuestion(q,ph=""){
-  promptEl.textContent=q;
-  input.placeholder=ph;
-  input.value="";
-  inputArea.classList.remove("hidden");
-  setTimeout(()=>input.focus(),0);
+  promptEl.textContent=q;input.placeholder=ph;input.value="";
+  inputArea.classList.remove("hidden");setTimeout(()=>input.focus(),0);
 }
-
-function choices(q,opts){
+function askChoices(q,opts){
   inputArea.classList.add("hidden");
   showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}">${esc(o.t)}</button>`).join("")}</div>`);
   chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
-
+function ynOptions(includeNA=false){
+  const o=[{t:C().yes,v:"yes"},{t:C().no,v:"no"},{t:C().unsure,v:"unsure"}];
+  if(includeNA) o.push({t:"N/A",v:"na"});
+  return o;
+}
 function reset(){
-  potentialUrgent=false;
-  step="main";
-  data={main:"",duration:"",patient:"",severity:"",other:""};
-  chat.innerHTML="";
+  step="main";data=freshData();targetedQueue=[];chat.innerHTML="";
   setQuestion(C().qMain,C().phMain);
 }
-
 function setLanguage(lang){
   language=lang;
   document.getElementById("englishBtn").classList.toggle("active",lang==="English");
   document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
   reset();
 }
-
-function currentContext(extra=""){
-  return [data.main,data.other,extra].filter(Boolean).join(" ");
+function hardStopEmergency(){
+  inputArea.classList.add("hidden");step="done";
+  showCard(`<span class="badge red">Emergency</span><br><strong>${esc(C().emergencyTitle)}</strong><br><br>${esc(C().emergencyBody)}
+  <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"emergency");
+  document.getElementById("restart").onclick=reset;
 }
-
+function potentialWarning(){
+  data.potentialUrgent=true;
+  showCard(`<span class="badge amber">Safety check</span><br><strong>${esc(C().warning)}</strong>`,"urgent");
+}
+function startTargeted(){
+  targetedQueue=[...(TARGETED[data.family]||[])];
+  if(targetedQueue.length){step="targeted";askNextTargeted();}
+  else{step="severity";askChoices(C().qSeverity,[{t:C().mild,v:"mild"},{t:C().moderate,v:"moderate"},{t:C().severe,v:"severe"}]);}
+}
+function askNextTargeted(){
+  if(!targetedQueue.length){
+    step="severity";
+    askChoices(C().qSeverity,[{t:C().mild,v:"mild"},{t:C().moderate,v:"moderate"},{t:C().severe,v:"severe"}]);
+    return;
+  }
+  const q=targetedQueue[0];
+  const includeNA=(q.options||[]).includes("na");
+  askChoices(language==="Pidgin"?q.qP:q.qE,ynOptions(includeNA));
+}
 function submitText(){
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
 
-  {
-    const safety=emergencyStatus(currentContext(v),data.severity,data.patient);
-    if(safety==="emergency"){
-      urgent("emergency");
-      return;
-    }
-    if(safety==="urgent" && !potentialUrgent){
-      showPotentialUrgentWarning();
-    }
-  }
-
   if(step==="main"){
     data.main=v;
-    step="duration";
-    setQuestion(C().qDuration,C().phDuration);
-    return;
+    if(immediateDanger(v)){hardStopEmergency();return;}
+    data.family=detectFamily(v);
+    if(data.family!=="general") potentialWarning();
+    step="duration";setQuestion(C().qDuration,C().phDuration);return;
   }
 
   if(step==="duration"){
     data.duration=v;
     step="patient";
-    choices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);
+    askChoices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);
     return;
   }
 
   if(step==="other"){
     data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
-
-    {
-    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-    if(safety==="emergency"){
-      urgent("emergency");
-      return;
-    }
-    if(safety==="urgent" && !potentialUrgent){
-      showPotentialUrgentWarning();
-    }
-  }
-
+    if(immediateDanger(data.other)){hardStopEmergency();return;}
     review();
   }
 }
-
 function choose(v){
   if(step==="patient"){
     data.patient=v;
-    step="severity";
-    choices(C().qSeverity,[
-      {t:C().mild,v:"mild"},
-      {t:C().moderate,v:"moderate"},
-      {t:C().severe,v:"severe"}
-    ]);
+    startTargeted();
+    return;
+  }
+
+  if(step==="targeted"){
+    const q=targetedQueue.shift();
+    data.targeted[q.id]=v;
+
+    // Some targeted answers are immediate-stop criteria.
+    const disposition=safetyDisposition();
+    if(disposition==="emergency"){hardStopEmergency();return;}
+
+    askNextTargeted();
     return;
   }
 
   if(step==="severity"){
     data.severity=v;
-
-    {
-    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-    if(safety==="emergency"){
-      urgent("emergency");
-      return;
-    }
-    if(safety==="urgent" && !potentialUrgent){
-      showPotentialUrgentWarning();
-    }
-  }
-
-    step="other";
-    setQuestion(C().qOther,C().phOther);
-    return;
+    step="other";setQuestion(C().qOther,C().phOther);return;
   }
 
   if(step==="confirm"){
-    if(v==="yes") recommend();
+    if(v==="yes") finalOutcome();
     else reset();
     return;
   }
 
   if(step==="helpful"){
-    if(v==="yes"){
-      inputArea.classList.add("hidden");
-      showCard(C().thanks);
-    }else{
-      step="retry";
-      choices(C().notHelpful+" "+C().retry,[{t:C().yes,v:"yes"},{t:C().no,v:"no"}]);
-    }
+    if(v==="yes"){inputArea.classList.add("hidden");showCard(C().thanks);}
+    else{step="retry";askChoices(C().notHelpful+" "+C().retry,[{t:C().yes,v:"yes"},{t:C().no,v:"no"}]);}
     return;
   }
 
   if(step==="retry"){
     if(v==="yes") reset();
-    else{
-      inputArea.classList.add("hidden");
-      showCard(C().thanks);
-    }
+    else{inputArea.classList.add("hidden");showCard(C().thanks);}
   }
 }
-
 function review(){
-  step="confirm";
-  inputArea.classList.add("hidden");
+  step="confirm";inputArea.classList.add("hidden");
   const other=data.other||C().no;
-
   showCard(`
     <strong>${esc(C().review)}</strong>
-    <div class="summary-row"><b>${language==="Pidgin"?"Wetin dey worry you pass":"Main symptom"}:</b> ${esc(data.main)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Main symptom":"Main symptom"}:</b> ${esc(data.main)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na when e start":"When it started"}:</b> ${esc(data.duration)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na for":"For"}:</b> ${esc(data.patient==="child"?C().child:C().adult)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"How e strong reach":"Severity"}:</b> ${esc({mild:C().mild,moderate:C().moderate,severe:C().severe}[data.severity])}</div>
-    <div class="summary-row"><b>${language==="Pidgin"?"Any other symptom":"Other symptoms"}:</b> ${esc(other)}</div>
-    <hr>
-    <strong>${esc(C().correct)}</strong>
-    <div class="choices">
-      <button class="choice" data-v="yes">${esc(C().yes)}</button>
-      <button class="choice" data-v="no">${esc(C().no)}</button>
-    </div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Other symptom":"Other symptoms"}:</b> ${esc(other)}</div>
+    <hr><strong>${esc(C().correct)}</strong>
+    <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
   `);
-
   chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
-
-function showPotentialUrgentWarning(){
-  potentialUrgent = true;
-  const msg = language==="Pidgin"
-    ? "⚠️ Some of wetin you describe fit need urgent medical assessment. We go ask a few more short questions to understand the picture better, but no delay emergency care if the person dey very unwell or dey get worse quickly."
-    : "⚠️ Some of what you described may need urgent medical assessment. Ask HDG will ask a few more short questions to understand the picture better, but do not delay emergency care if the person is very unwell or worsening quickly.";
-  showCard(`<strong>${esc(msg)}</strong>`, true);
+function articleBlock(limit=3){
+  if(!ARTICLES.length) return `<p class="muted">HDG article index is not ready yet.</p>`;
+  const q=[data.main,data.other].filter(Boolean).join(" ");
+  const m=findArticles(q,limit);
+  if(!m.length) return `<p>${esc(C().noMatch)}</p>`;
+  return m.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("");
 }
-
-function urgent(level="urgent"){
-  inputArea.classList.add("hidden");
-  step="done";
-
-  const isEmergency=level==="emergency";
-  const title=isEmergency
-    ? C().urgentTitle
-    : (language==="Pidgin"
-        ? "⚠️ Wetin you describe fit need urgent medical assessment."
-        : "⚠️ What you described may need urgent medical assessment.");
-
-  const body=isEmergency
-    ? C().urgentBody
-    : (language==="Pidgin"
-        ? "Abeg no depend on Ask HDG alone for this one. Seek urgent medical assessment. If the person dey get worse quickly, collapse, no fit breathe, or you think say na emergency, contact emergency services."
-        : "Please do not rely on Ask HDG alone for this. Seek urgent medical assessment. If symptoms are rapidly worsening, the person collapses, cannot breathe, or you think this is an emergency, contact emergency services.");
-
-  showCard(`
-    <strong>${esc(title)}</strong>
-    <br><br>
-    ${esc(body)}
-    <div class="actions">
-      <button type="button" class="secondary" id="restart">${esc(C().retry)}</button>
-    </div>
-  `,true);
-
-  document.getElementById("restart").onclick=reset;
-}
-
-function recommend(){
-  {
-    const safety=emergencyStatus(currentContext(),data.severity,data.patient);
-    if(safety==="emergency"){
-      urgent("emergency");
-      return;
-    }
-    if(safety==="urgent" && !potentialUrgent){
-      showPotentialUrgentWarning();
-    }
-  }
-
-  if(!ARTICLES.length){
-    showCard("HDG article index is not ready yet. Refresh the page once. If the message remains, make sure HDG_Public_Article_Index.txt is in the same GitHub folder as index.html.",false,true);
-    return;
-  }
-
-  const q=[
-    data.main,
-    data.other,
-    data.patient==="child"?"child children pikin":"adult"
-  ].filter(Boolean).join(" ");
-
-  const m=findArticles(q);
-  step="helpful";
+function finalOutcome(){
+  const disposition=safetyDisposition();
   inputArea.classList.add("hidden");
 
-  let body=`<strong>${esc(C().rec)}</strong>`;
+  if(disposition==="emergency"){hardStopEmergency();return;}
 
-  if(m.length){
-    m.forEach(a=>{
-      body+=`
-        <div class="article">
-          <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>
-          ${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}
-        </div>
-      `;
-    });
+  if(disposition==="urgent"){
+    step="helpful";
+    showCard(`
+      <span class="badge amber">Urgent assessment</span><br>
+      <strong>${esc(C().urgentTitle)}</strong><br><br>${esc(C().urgentBody)}
+      <hr><strong>${esc(C().rec)}</strong>
+      ${articleBlock(2)}
+      <br><strong>${esc(C().helpful)}</strong>
+      <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
+    `,"urgent");
   }else{
-    body+=`<p>${esc(C().noMatch)}</p>`;
+    step="helpful";
+    showCard(`
+      <span class="badge green">Health navigation</span><br>
+      <strong>${esc(C().rec)}</strong>
+      ${articleBlock(3)}
+      <p class="muted">${esc(C().greenBody)}</p>
+      <strong>${esc(C().helpful)}</strong>
+      <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
+    `);
   }
 
-  body+=`
-    <p>${esc(C().general)}</p>
-    <p class="muted">${language==="Pidgin"?"These recommendations no be diagnosis.":"These recommendations are not a diagnosis."}</p>
-    <strong>${esc(C().helpful)}</strong>
-    <div class="choices">
-      <button class="choice" data-v="yes">${esc(C().yes)}</button>
-      <button class="choice" data-v="no">${esc(C().no)}</button>
-    </div>
-  `;
-
-  showCard(body);
   chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
 }
 
 document.getElementById("englishBtn").onclick=()=>setLanguage("English");
 document.getElementById("pidginBtn").onclick=()=>setLanguage("Pidgin");
 ask.onclick=submitText;
-input.addEventListener("keydown",e=>{
-  if(e.key==="Enter"&&!e.shiftKey){
-    e.preventDefault();
-    submitText();
-  }
-});
+input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitText();}});
 
 reset();
 loadArticles();
