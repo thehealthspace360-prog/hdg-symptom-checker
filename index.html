@@ -79,7 +79,10 @@ function freshData(){
     other:"",
     family:"general",
     targeted:{},
-    potentialUrgent:false
+    potentialUrgent:false,
+    intent:"",
+    topic:"",
+    route:"general"
   };
 }
 
@@ -332,6 +335,47 @@ function safetyDisposition(){
   return "education";
 }
 
+
+const LEARN_CUES=["what is","what are","tell me about","learn about","learn more about","explain","information about","info about","meaning of","overview of","wetin be"];
+const SYMPTOM_CUES=["i have","i've got","i got","i am having","i'm having","my ","i feel","i am feeling","i'm feeling","i dey","dey worry me","my child","my pikin","my baby","my daughter","my son"];
+
+const ROUTES=[
+ {id:"musculoskeletal",cues:["knee","joint","ankle","shoulder","elbow","wrist","hip","back pain","neck pain","muscle pain","leg pain","sciatica","arthritis","osteoarthritis","rheumatoid","ankylosing","spinal","herniated disc"],prefer:["musculoskeletal"],penalize:["women's health","mental health","heart"]},
+ {id:"gynaecology",cues:["vaginal","vagina","period","menstrual","menstruation","menses","pelvic","fibroid","adenomyosis","endometriosis","ovarian","pcos","menopause","contraception","pain with sex","dyspareunia"],prefer:["women's health"],penalize:["blood disorders","musculoskeletal","men's health"]},
+ {id:"mens_health",cues:["testicle","testicular","scrotum","scrotal","penis","erectile","prostate","bph","varicocele","hydrocele","spermatocele"],prefer:["men's health"],penalize:["women's health"]},
+ {id:"skin",cues:["acne","pimple","pimples","blackhead","whitehead","oily skin","rash","eczema","impetigo"],prefer:["skin","dermatology"],penalize:["mental health"]},
+ {id:"respiratory",cues:["cough","wheeze","wheezing","asthma","breathing","shortness of breath","bronchiolitis","rsv","tuberculosis"],prefer:["respiratory","infections","children"],penalize:["mental health"]},
+ {id:"neurology",cues:["headache","migraine","seizure","convulsion","stroke","dizziness","vertigo","tremor","numbness","tingling","parkinson"],prefer:["neurology","brain","emergency"],penalize:["women's health"]},
+ {id:"urinary",cues:["urine","urinary","burning urine","painful urination","uti","kidney","bladder"],prefer:["urinary","kidney"],penalize:["musculoskeletal"]},
+ {id:"breast",cues:["breast lump","breast pain","breast swelling","nipple"],prefer:["women's health"],penalize:["musculoskeletal"]},
+ {id:"general",cues:[],prefer:[],penalize:[]}
+];
+
+function detectIntent(text){
+ const n=norm(text);
+ if(LEARN_CUES.some(x=>n.includes(norm(x)))) return "learn";
+ if(SYMPTOM_CUES.some(x=>n.includes(norm(x)))) return "symptom";
+ if(/^(what|why|how|can|does|is)\b/.test(n)) return "learn";
+ return "ambiguous";
+}
+function detectRoute(text){
+ const n=norm(text); let best=ROUTES[ROUTES.length-1],bestScore=0;
+ ROUTES.forEach(r=>{let sc=0;r.cues.forEach(c=>{const x=norm(c);if(n.includes(x))sc+=Math.max(2,x.split(" ").length*3)});if(sc>bestScore){best=r;bestScore=sc}});
+ return best;
+}
+function cleanLearnTopic(text){
+ let n=String(text||"").trim();
+ [/^what\s+(?:is|are)\s+/i,/^tell\s+me\s+about\s+/i,/^tell\s+me\s+more\s+about\s+/i,/^i\s+(?:want|would like)\s+to\s+learn\s+(?:more\s+)?about\s+/i,/^learn\s+(?:more\s+)?about\s+/i,/^explain\s+/i,/^information\s+about\s+/i,/^info\s+about\s+/i,/^wetin\s+be\s+/i].forEach(p=>n=n.replace(p,""));
+ return n.replace(/[?.!]+$/,"").trim();
+}
+function routeScore(a,route){
+ if(!route||route.id==="general")return 0;
+ const cat=norm(a.category);let d=0;
+ if(route.prefer.some(x=>cat.includes(norm(x))))d+=85;
+ if(route.penalize.some(x=>cat.includes(norm(x))))d-=110;
+ return d;
+}
+
 function parseIndex(text){
   return text.split(/(?=^ARTICLE\s+\d+\s*$)/gmi).map(block=>{
     const f={};
@@ -420,6 +464,24 @@ function scoreArticle(a,q){
     if(cat.includes("children")||title.includes("child")||title.includes("children")||title.includes("pikin")||title.includes("baby")) score-=40;
   }
 
+  const route=ROUTES.find(r=>r.id===data.route)||ROUTES[ROUTES.length-1];
+  score+=routeScore(a,route);
+  const query=norm(q);
+
+  if(query.includes("knee")){
+    if(title.includes("knee")||keys.includes("knee"))score+=180;
+    if(cat.includes("musculoskeletal"))score+=70;
+    if(title.includes("chest pain")||title.includes("pain with sex")||title.includes("breast pain"))score-=220;
+  }
+  if(query.includes("vaginal")&&query.includes("bleeding")){
+    if(cat.includes("women's health"))score+=150;
+    if(title.includes("vaginal")||keys.includes("vaginal")||title.includes("menstrual")||keys.includes("menstrual")||title.includes("period"))score+=100;
+    if(cat.includes("blood")||title.includes("bleeding disorder"))score-=220;
+  }
+  if(query.includes("testicular")||query.includes("testicle")||query.includes("scrotal")||query.includes("scrotum")){
+    if(cat.includes("men's health"))score+=140;
+    if(cat.includes("women's health"))score-=180;
+  }
   return score;
 }
 
@@ -493,16 +555,49 @@ function askNextTargeted(){
   const includeNA=(q.options||[]).includes("na");
   askChoices(language==="Pidgin"?q.qP:q.qE,ynOptions(includeNA));
 }
+
+function articleOverview(a,topic){
+ const name=a?a.title:topic;
+ return language==="Pidgin"
+ ? `${name} na health topic wey HDG cover. The main HDG guide fit help you understand wetin the topic mean, common symptoms or features, possible causes, and when medical assessment fit matter.`
+ : `${name} is a health topic covered by HDG. The main HDG guide can help you understand what it means, common symptoms or features, possible causes, and when medical assessment may matter.`;
+}
+function learnMode(){
+ step="learn_done";inputArea.classList.add("hidden");
+ const topic=data.topic||data.main,m=findArticles(topic,4),main=m[0];
+ if(!main){
+   showCard(`<span class="badge green">Learn</span><br><strong>${esc(topic)}</strong><p>${esc(language==="Pidgin"?"I no find close HDG guide for this topic yet.":"I couldn't find a close HDG guide for this topic yet.")}</p><div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`);
+   document.getElementById("restart").onclick=reset;return;
+ }
+ const related=m.slice(1,4);
+ const relatedHtml=related.length?`<hr><strong>Learn more</strong>`+related.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join(""):"";
+ showCard(`<span class="badge green">Learn</span><br><strong>${esc(main.title)}</strong><p>${esc(articleOverview(main,topic))}</p><div class="article"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${esc(language==="Pidgin"?"Read the main HDG guide":"Read the main HDG guide")}: ${esc(main.title)}</a>${main.category?`<br><span class="muted">${esc(main.category)}</span>`:""}</div>${relatedHtml}<div class="actions"><button type="button" class="secondary" id="restart">${esc(language==="Pidgin"?"Ask another question":"Ask another question")}</button></div>`);
+ document.getElementById("restart").onclick=reset;
+}
+function askIntent(){
+ step="intent";
+ const q=language==="Pidgin"?`You dey experience "${data.topic}" yourself, or you just wan learn about am?`:`Are you experiencing "${data.topic}" yourself, or would you just like to learn about it?`;
+ askChoices(q,[{t:language==="Pidgin"?"I get symptom":"I'm experiencing symptoms",v:"symptom"},{t:language==="Pidgin"?"I wan learn":"I just want to learn",v:"learn"}]);
+}
+function beginSymptomFlow(){
+ if(immediateDanger(data.main)){hardStopEmergency();return;}
+ data.family=detectFamily(data.main);
+ if(data.family!=="general")potentialWarning();
+ step="duration";setQuestion(C().qDuration,C().phDuration);
+}
+
 function submitText(){
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
 
   if(step==="main"){
     data.main=v;
-    if(immediateDanger(v)){hardStopEmergency();return;}
-    data.family=detectFamily(v);
-    if(data.family!=="general") potentialWarning();
-    step="duration";setQuestion(C().qDuration,C().phDuration);return;
+    data.intent=detectIntent(v);
+    data.topic=cleanLearnTopic(v);
+    data.route=detectRoute(v).id;
+    if(data.intent==="learn"){learnMode();return;}
+    if(data.intent==="ambiguous"){askIntent();return;}
+    beginSymptomFlow();return;
   }
 
   if(step==="duration"){
@@ -519,6 +614,11 @@ function submitText(){
   }
 }
 function choose(v){
+  if(step==="intent"){
+    data.intent=v;
+    if(v==="learn"){learnMode();return;}
+    beginSymptomFlow();return;
+  }
   if(step==="patient"){
     data.patient=v;
     startTargeted();
