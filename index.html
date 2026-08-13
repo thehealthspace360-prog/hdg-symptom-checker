@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v33: erection/erectile dysfunction retrieval corrected; broader retrieval retained -->
+<!-- v37: starter suggestions return to main search with selected text prefilled -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -42,7 +42,13 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 .reason-box{margin:12px 0;padding:11px 13px;border-radius:10px;background:#f5f7f5;line-height:1.45}
 .uncertainty-box{margin:12px 0;padding:11px 13px;border-radius:10px;background:#fff8e6;border-left:4px solid var(--amber);line-height:1.45}
 .learn-focus{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.learn-focus button{background:#fff;color:var(--green);border:1px solid var(--green);border-radius:999px;padding:8px 12px;cursor:pointer}.secondary{border-radius:9px}.hidden{display:none}
+
+.learn-focus button{background:#fff;color:var(--green);border:1px solid var(--green);border-radius:999px;padding:8px 12px;cursor:pointer}
+.related-jump{display:flex;justify-content:center;margin:14px 0 6px}
+.related-jump button{background:transparent;border:0;color:var(--green);font-size:14px;font-weight:bold;cursor:pointer}
+.related-arrow{font-size:22px;line-height:1;display:block;margin-top:2px}
+.related-section{scroll-margin-top:18px}
+.secondary{border-radius:9px}.hidden{display:none}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;margin-bottom:8px}
 .badge.red{background:#fee4e2;color:#912018}.badge.amber{background:#fff0c2;color:#7a4a00}.badge.green{background:#e4f2ec;color:#155544}
 @media(max-width:600px){.wrap{margin:0;padding:0}.checker{border-radius:0;min-height:100vh}.header{border-radius:0}}
@@ -494,10 +500,24 @@ const ROUTES=[
 
 function detectIntent(text){
  const n=norm(text);
+
+ // Explicit educational phrasing should go straight to Learn mode.
  if(LEARN_CUES.some(x=>n.includes(norm(x)))) return "learn";
+ if(/^(what\s+(is|are)|wetin\s+be)\b/.test(n)) return "learn";
+
+ // "Why..." questions often mean either:
+ // 1) "I am experiencing this" OR
+ // 2) "I just want to understand this".
+ // Let the user choose rather than assuming symptom mode.
+ if(/^(why|why\s+does|why\s+do|why\s+is|why\s+am|why\s+can't|why\s+cant|why\s+i)\b/.test(n)) return "ambiguous";
+
+ // If the user clearly states they are experiencing something, use symptom flow.
  if(SYMPTOM_CUES.some(x=>n.includes(norm(x)))) return "symptom";
  if(detectDurationFromText(text) || detectPatientFromText(text)) return "symptom";
- if(/^(what|why|how|can|does|is)\b/.test(n)) return "learn";
+
+ // Other question forms can remain educational by default.
+ if(/^(how|can|does|is)\b/.test(n)) return "learn";
+
  return "ambiguous";
 }
 function detectRoute(text){
@@ -996,7 +1016,7 @@ function captureAnswerState(){
   updateBackButton();
 }
 function updateBackButton(){
-  const show=answerHistory.length>0&&!["main","learn_done","done"].includes(step);
+  const show=answerHistory.length>0&&!["learn_done","done"].includes(step);
   backRow.classList.toggle("hidden",!show);
   backBtn.textContent=language==="Pidgin"?"← Go back / Change answer":"← Back / Change answer";
 }
@@ -1006,7 +1026,15 @@ function restorePreviousAnswer(){
   chat.innerHTML=snap.chatHTML;promptEl.textContent=snap.promptText;
   input.value=snap.inputValue;input.placeholder=snap.inputPlaceholder;
   inputArea.classList.toggle("hidden",snap.inputAreaHidden);
-  wireChoiceButtons();updateBackButton();
+  wireChoiceButtons();
+
+  if(step==="main"){
+    renderStarterSuggestions();
+  }else{
+    hideStarterSuggestions();
+  }
+
+  updateBackButton();
   if(!snap.inputAreaHidden)setTimeout(()=>input.focus(),0);
 }
 backBtn.onclick=restorePreviousAnswer;
@@ -1018,6 +1046,7 @@ function showCard(html,type="normal"){
   chat.innerHTML=`<div class="card${cls}">${html}</div>`;
 }
 function setQuestion(q,ph=""){
+  hideStarterSuggestions();
   promptEl.textContent=q;input.placeholder=ph;input.value="";
   inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);
 }
@@ -1033,6 +1062,7 @@ function wireChoiceButtons(){
 }
 
 function askChoices(q,opts){
+  hideStarterSuggestions();
   inputArea.classList.add("hidden");
   showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}">${esc(o.t)}</button>`).join("")}</div>`);
   wireChoiceButtons();
@@ -1069,6 +1099,19 @@ function starterSuggestions(){
 
   return [randomFrom(groups[0]),randomFrom(groups[1])];
 }
+
+function hideStarterSuggestions(){
+  document.getElementById("starterSuggestions")?.remove();
+}
+
+function showStarterSuggestionsIfAllowed(){
+  if(step==="main" || step==="retry" || step==="done"){
+    renderStarterSuggestions();
+  }else{
+    hideStarterSuggestions();
+  }
+}
+
 function renderStarterSuggestions(){
   document.getElementById("starterSuggestions")?.remove();
   const wrap=document.createElement("div");
@@ -1077,7 +1120,19 @@ function renderStarterSuggestions(){
     const b=document.createElement("button");
     b.type="button";b.className="suggestion-chip";b.textContent=text;
     b.onclick=()=>{
-      input.value=text;input.focus();
+      // A suggestion should take the user back to the main search screen,
+      // prefill the selected text, and wait for the user to press Continue.
+      step="main";
+      data=freshData();
+      targetedQueue=[];
+      answerHistory=[];
+      chat.innerHTML="";
+      inputArea.classList.remove("hidden");
+      promptEl.textContent=C().qMain;
+      input.placeholder=C().phMain;
+      input.value=text;
+      updateBackButton();
+      input.focus();
       input.setSelectionRange(input.value.length,input.value.length);
     };
     wrap.appendChild(b);
@@ -1494,7 +1549,12 @@ function learnMode(){
   }
 
   const related=matches.slice(1,4);
-  const relatedHtml=related.length?`<hr><strong>More HDG resources</strong>`+related.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join(""):"";
+  const relatedHtml=related.length
+    ? `<div class="related-jump"><button type="button" id="jumpRelated">${language==="Pidgin"?"See related articles":"See related articles"}<span class="related-arrow">↓</span></button></div>
+       <div id="relatedArticles" class="related-section"><hr><strong>${language==="Pidgin"?"Related HDG articles":"Related HDG articles"}</strong>`+
+      related.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("")+
+      `</div>`
+    : "";
 
   showCard(`<span class="badge green">Learn</span><br><strong>${esc(main.title)}</strong>
     <p>${esc(articleOverview(main,topic))}</p>
@@ -1511,6 +1571,14 @@ function learnMode(){
     <div class="actions"><button type="button" class="secondary" id="restart">${language==="Pidgin"?"Ask another question":"Ask another question"}</button></div>`);
 
   document.getElementById("restart").onclick=reset;
+
+  const jumpRelated=document.getElementById("jumpRelated");
+  if(jumpRelated){
+    jumpRelated.onclick=()=>{
+      document.getElementById("relatedArticles")?.scrollIntoView({behavior:"smooth",block:"start"});
+    };
+  }
+
   chat.querySelectorAll("[data-learn-focus]").forEach(btn=>{
     btn.onclick=()=>{
       const focus=btn.dataset.learnFocus,box=document.getElementById("learnFocusResults");
@@ -1527,8 +1595,13 @@ function learnMode(){
 }
 function askIntent(){
  step="intent";
- const q=language==="Pidgin"?`You dey experience "${data.topic}" yourself, or you just wan learn about am?`:`Are you experiencing "${data.topic}" yourself, or would you just like to learn about it?`;
- askChoices(q,[{t:language==="Pidgin"?"I get symptom":"I'm experiencing symptoms",v:"symptom"},{t:language==="Pidgin"?"I wan learn":"I just want to learn",v:"learn"}]);
+ const q=language==="Pidgin"
+   ? `You dey experience this yourself, or you just wan understand/learn more about am?`
+   : `Are you experiencing this yourself, or would you just like to understand or learn more about it?`;
+ askChoices(q,[
+   {t:language==="Pidgin"?"I dey experience am":"I'm experiencing this",v:"symptom"},
+   {t:language==="Pidgin"?"I just wan understand am":"I just want to learn more",v:"learn"}
+ ]);
 }
 
 function continueAfterDurationSelective(){
@@ -1579,7 +1652,10 @@ function beginSymptomFlow(){
 function submitText(){
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
-  if(step!=="main")captureAnswerState();
+
+  // Save the current screen before EVERY submission, including the first one.
+  // This lets users return from "When did this start?" to the original question.
+  captureAnswerState();
 
   if(step==="main"){
     data.main=v;
@@ -1678,14 +1754,27 @@ function choose(v){
   }
 
   if(step==="helpful"){
-    if(v==="yes"){inputArea.classList.add("hidden");showCard(C().thanks);}
-    else{step="retry";askChoices(C().notHelpful+" "+C().retry,[{t:C().yes,v:"yes"},{t:C().no,v:"no"}]);}
+    if(v==="yes"){
+      inputArea.classList.add("hidden");
+      step="done";
+      showCard(C().thanks);
+      renderStarterSuggestions();
+    }else{
+      step="retry";
+      askChoices(C().notHelpful+" "+C().retry,[{t:C().yes,v:"yes"},{t:C().no,v:"no"}]);
+      renderStarterSuggestions();
+    }
     return;
   }
 
   if(step==="retry"){
     if(v==="yes") reset();
-    else{inputArea.classList.add("hidden");showCard(C().thanks);}
+    else{
+      inputArea.classList.add("hidden");
+      step="done";
+      showCard(C().thanks);
+      renderStarterSuggestions();
+    }
   }
 }
 function review(){
