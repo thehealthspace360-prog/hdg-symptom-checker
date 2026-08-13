@@ -357,6 +357,7 @@ function detectIntent(text){
  const n=norm(text);
  if(LEARN_CUES.some(x=>n.includes(norm(x)))) return "learn";
  if(SYMPTOM_CUES.some(x=>n.includes(norm(x)))) return "symptom";
+ if(detectDurationFromText(text) || detectPatientFromText(text)) return "symptom";
  if(/^(what|why|how|can|does|is)\b/.test(n)) return "learn";
  return "ambiguous";
 }
@@ -569,6 +570,97 @@ function askNextTargeted(){
   askChoices(language==="Pidgin"?q.qP:q.qE,ynOptions(includeNA));
 }
 
+
+function detectPatientFromText(text){
+  const n=norm(text);
+
+  const childCues=[
+    "my child","my pikin","my baby","my son","my daughter",
+    "this child","this pikin","this baby","for my child","for my pikin",
+    "child has","pikin get","baby has","baby get",
+    "year old child","year-old child","year old boy","year old girl",
+    "years old child","years old boy","years old girl"
+  ];
+  if(childCues.some(x=>n.includes(norm(x)))) return "child";
+
+  // Explicit adult wording only. We do not assume a bare symptom is adult.
+  const adultCues=[
+    "adult","for an adult","my husband","my wife","my partner",
+    "adult man","adult woman","grown man","grown woman"
+  ];
+  if(adultCues.some(x=>n.includes(norm(x)))) return "adult";
+
+  return "";
+}
+
+function detectDurationFromText(text){
+  const raw=String(text||"").trim();
+  const patterns=[
+    /\bfor\s+(?:about\s+)?(\d+\s*(?:hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years))\b/i,
+    /\b(?:since|from)\s+(today|yesterday|last night|this morning|this afternoon|this evening)\b/i,
+    /\b(?:started|start)\s+(today|yesterday|last night|this morning|this afternoon|this evening)\b/i,
+    /\b(\d+\s*(?:hour|hours|hr|hrs|day|days|week|weeks|month|months|year|years))\s+(?:ago|now)\b/i,
+    /\b(today|yesterday|last night|this morning|this afternoon|this evening)\b/i
+  ];
+
+  for(const p of patterns){
+    const m=raw.match(p);
+    if(m) return (m[1]||m[0]).trim();
+  }
+  return "";
+}
+
+function learnQueryIsChildSpecific(topic){
+  const n=norm(topic);
+  return [
+    "child","children","pikin","baby","babies","infant","infants",
+    "newborn","newborns","toddler","toddlers","teen","teenager"
+  ].some(x=>n.includes(x));
+}
+
+function findLearnArticles(topic,limit=4){
+  // Learn mode defaults to the general/adult article first.
+  // Child-specific pages only lead if the user explicitly asked about a child.
+  const wantsChild=learnQueryIsChildSpecific(topic);
+  const previousPatient=data.patient;
+
+  // Do not let symptom-flow age state distort educational retrieval.
+  data.patient="";
+
+  let matches=findArticles(topic,Math.max(limit,10));
+
+  data.patient=previousPatient;
+
+  matches=matches.sort((a,b)=>{
+    const aText=norm(a.title+" "+a.category);
+    const bText=norm(b.title+" "+b.category);
+
+    const aChild=/\b(child|children|pikin|baby|babies|infant|toddler|teen)\b/.test(aText);
+    const bChild=/\b(child|children|pikin|baby|babies|infant|toddler|teen)\b/.test(bText);
+
+    if(wantsChild){
+      if(aChild!==bChild) return aChild ? -1 : 1;
+    }else{
+      if(aChild!==bChild) return aChild ? 1 : -1;
+    }
+
+    // Prefer concise main topic pages over long explainers.
+    const aw=norm(a.title).split(" ").filter(Boolean).length;
+    const bw=norm(b.title).split(" ").filter(Boolean).length;
+    return aw-bw;
+  });
+
+  return matches.slice(0,limit);
+}
+
+function captureInitialContext(text){
+  const detectedDuration=detectDurationFromText(text);
+  const detectedPatient=detectPatientFromText(text);
+
+  if(detectedDuration) data.duration=detectedDuration;
+  if(detectedPatient) data.patient=detectedPatient;
+}
+
 function articleOverview(a,topic){
  const name=a?a.title:topic;
  return language==="Pidgin"
@@ -577,7 +669,7 @@ function articleOverview(a,topic){
 }
 function learnMode(){
  step="learn_done";inputArea.classList.add("hidden");
- const topic=data.topic||data.main,m=findArticles(topic,4),main=m[0];
+ const topic=data.topic||data.main,m=findLearnArticles(topic,4),main=m[0];
  if(!main){
    showCard(`<span class="badge green">Learn</span><br><strong>${esc(topic)}</strong><p>${esc(language==="Pidgin"?"I no find close HDG guide for this topic yet.":"I couldn't find a close HDG guide for this topic yet.")}</p><div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`);
    document.getElementById("restart").onclick=reset;return;
@@ -594,9 +686,25 @@ function askIntent(){
 }
 function beginSymptomFlow(){
  if(immediateDanger(data.main)){hardStopEmergency();return;}
+
  data.family=detectFamily(data.main);
  if(data.family!=="general")potentialWarning();
- step="duration";setQuestion(C().qDuration,C().phDuration);
+
+ // If onset/duration was already typed, do not ask it again.
+ if(!data.duration){
+   step="duration";
+   setQuestion(C().qDuration,C().phDuration);
+   return;
+ }
+
+ // If adult/child was already clear from the first message, skip this too.
+ if(!data.patient){
+   step="patient";
+   askChoices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);
+   return;
+ }
+
+ startTargeted();
 }
 
 function submitText(){
@@ -605,16 +713,26 @@ function submitText(){
 
   if(step==="main"){
     data.main=v;
+    captureInitialContext(v);
     data.intent=detectIntent(v);
     data.topic=cleanLearnTopic(v);
     data.route=detectRoute(v).id;
+
     if(data.intent==="learn"){learnMode();return;}
     if(data.intent==="ambiguous"){askIntent();return;}
-    beginSymptomFlow();return;
+
+    beginSymptomFlow();
+    return;
   }
 
   if(step==="duration"){
     data.duration=v;
+
+    if(data.patient){
+      startTargeted();
+      return;
+    }
+
     step="patient";
     askChoices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);
     return;
@@ -689,9 +807,42 @@ function review(){
 }
 function articleBlock(limit=3){
   if(!ARTICLES.length) return `<p class="muted">HDG article index is not ready yet.</p>`;
-  const q=[data.main,data.other].filter(Boolean).join(" ");
-  const m=findArticles(q,limit);
+
+  const mainQuery=data.main || "";
+  const otherQuery=data.other || "";
+
+  const preferred=findArticles(mainQuery,Math.max(limit,4));
+
+  const combinedQuery=[mainQuery,otherQuery].filter(Boolean).join(" ");
+  const combined=findArticles(combinedQuery,Math.max(limit,6));
+
+  const otherOnly=otherQuery ? findArticles(otherQuery,Math.max(limit,4)) : [];
+
+  const seen=new Set();
+  const ordered=[];
+
+  function add(list){
+    list.forEach(a=>{
+      if(!seen.has(a.url)){
+        seen.add(a.url);
+        ordered.push(a);
+      }
+    });
+  }
+
+  // Main symptom must stay dominant.
+  add(preferred.slice(0,2));
+
+  // Then allow one article informed by the whole symptom picture.
+  add(combined);
+
+  // Only use an additional-symptom article if room remains.
+  add(otherOnly);
+
+  const m=ordered.slice(0,limit);
+
   if(!m.length) return `<p>${esc(C().noMatch)}</p>`;
+
   return m.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("");
 }
 function finalOutcome(){
