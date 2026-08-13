@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v31: two starter suggestions; two input examples; no visible Not sure escalation explanation -->
+<!-- v33: erection/erectile dysfunction retrieval corrected; broader retrieval retained -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -482,7 +482,7 @@ const SYMPTOM_CUES=["i have","i've got","i got","i am having","i'm having","my "
 const ROUTES=[
  {id:"musculoskeletal",cues:["knee","joint","ankle","shoulder","elbow","wrist","hip","back pain","neck pain","muscle pain","leg pain","sciatica","arthritis","osteoarthritis","rheumatoid","ankylosing","spinal","herniated disc"],prefer:["musculoskeletal"],penalize:["women's health","mental health","heart"]},
  {id:"gynaecology",cues:["vaginal","vagina","period","menstrual","menstruation","menses","pelvic","fibroid","adenomyosis","endometriosis","ovarian","pcos","menopause","contraception","pain with sex","dyspareunia"],prefer:["women's health"],penalize:["blood disorders","musculoskeletal","men's health"]},
- {id:"mens_health",cues:["testicle","testicular","scrotum","scrotal","penis","erectile","prostate","bph","varicocele","hydrocele","spermatocele"],prefer:["men's health"],penalize:["women's health"]},
+ {id:"mens_health",cues:["testicle","testicular","scrotum","scrotal","penis","erection","erectile","erectile dysfunction","impotence","prostate","bph","varicocele","hydrocele","spermatocele"],prefer:["men's health"],penalize:["women's health"]},
  {id:"skin",cues:["acne","pimple","pimples","blackhead","whitehead","oily skin","rash","eczema","impetigo"],prefer:["skin","dermatology"],penalize:["mental health"]},
  {id:"respiratory",cues:["cough","wheeze","wheezing","asthma","breathing","shortness of breath","bronchiolitis","rsv","tuberculosis"],prefer:["respiratory","infections","children"],penalize:["mental health"]},
  {id:"cardiovascular",cues:["high blood pressure","high bp","hypertension","blood pressure","heart attack","palpitations","chest pain","coronary artery","cholesterol"],prefer:["heart / blood vessels","heart"],penalize:["mental health","skin"]},
@@ -804,6 +804,7 @@ function fuzzyExpandQuery(text){
 }
 
 const QUERY_SYNONYMS=[
+  {patterns:[/\berection\b/gi,/\berection problem\b/gi,/\berection problems\b/gi,/\berection difficulty\b/gi,/\bdifficulty getting an erection\b/gi,/\bdifficulty keeping an erection\b/gi,/\bimpotence\b/gi],replace:"erectile dysfunction"},
   {patterns:[/\bi can(?:not|'t|t) see\b/gi,/\bcannot see\b/gi,/\bunable to see\b/gi],replace:"vision loss blindness"},
   {patterns:[/\bi can(?:not|'t|t) hear\b/gi,/\bcannot hear\b/gi,/\bunable to hear\b/gi],replace:"hearing loss deafness"},
   {patterns:[/\bhigh bp\b/gi,/\bhypertension\b/gi],replace:"high blood pressure"},
@@ -830,9 +831,6 @@ function expandQuerySynonyms(text){
   });
   return out;
 }
-
-const MIN_ARTICLE_SCORE=55;
-const MIN_LEARN_SCORE=70;
 
 function searchWords(s){
   const expanded=expandQuerySynonyms(s);
@@ -914,6 +912,12 @@ function scoreArticle(a,q){
     if(title.includes("blood sugar")||title.includes("crp blood test")||title.includes("blood disorders")) score-=260;
   }
 
+  if(query.includes("erectile dysfunction") || query.includes("erection")){
+    if(title.includes("erectile dysfunction")) score+=360;
+    if(cat.includes("men's health")) score+=120;
+    if(cat.includes("women's health")) score-=220;
+  }
+
   return score;
 }
 
@@ -965,7 +969,7 @@ function findArticles(q,limit=3){
   const ranked=pref
     .filter(a=>ageAppropriateArticle(a,q))
     .map(a=>({...a,score:scoreArticle(a,q)}))
-    .filter(a=>a.score>=MIN_ARTICLE_SCORE)
+    .filter(a=>a.score>0)
     .sort((a,b)=>b.score-a.score);
   const seen=new Set();
   return ranked.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
@@ -1437,7 +1441,7 @@ function findLearnArticles(topic,limit=4){
 
     return {...a,score:total};
   })
-  .filter(a=>a.score>=MIN_LEARN_SCORE)
+  .filter(a=>a.score>0)
   .sort((a,b)=>b.score-a.score);
 
   data.patient=previousPatient;
