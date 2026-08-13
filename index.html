@@ -657,38 +657,38 @@ function learnQueryIsChildSpecific(topic){
 }
 
 function findLearnArticles(topic,limit=4){
-  // Learn mode defaults to the general/adult article first.
-  // Child-specific pages only lead if the user explicitly asked about a child.
   const wantsChild=learnQueryIsChildSpecific(topic);
   const previousPatient=data.patient;
-
-  // Do not let symptom-flow age state distort educational retrieval.
   data.patient="";
 
-  let matches=findArticles(topic,Math.max(limit,10));
+  let pref=ARTICLES.filter(a=>norm(a.language)===norm(language));
+  if(!pref.length) pref=ARTICLES;
+
+  let matches=pref.map(a=>{
+    let total=scoreArticle(a,topic);
+    const text=norm(a.title+" "+a.category);
+    const isChild=/\b(child|children|pikin|baby|babies|infant|toddler|teen)\b/.test(text);
+
+    // Age preference refines relevance but never replaces it.
+    if(wantsChild){
+      total += isChild ? 70 : 0;
+    }else{
+      total += isChild ? -90 : 25;
+    }
+
+    // Small concise-title preference only after relevance has been established.
+    const wc=norm(a.title).split(" ").filter(Boolean).length;
+    if(wc<=4) total+=12;
+
+    return {...a,score:total};
+  })
+  .filter(a=>a.score>0)
+  .sort((a,b)=>b.score-a.score);
 
   data.patient=previousPatient;
 
-  matches=matches.sort((a,b)=>{
-    const aText=norm(a.title+" "+a.category);
-    const bText=norm(b.title+" "+b.category);
-
-    const aChild=/\b(child|children|pikin|baby|babies|infant|toddler|teen)\b/.test(aText);
-    const bChild=/\b(child|children|pikin|baby|babies|infant|toddler|teen)\b/.test(bText);
-
-    if(wantsChild){
-      if(aChild!==bChild) return aChild ? -1 : 1;
-    }else{
-      if(aChild!==bChild) return aChild ? 1 : -1;
-    }
-
-    // Prefer concise main topic pages over long explainers.
-    const aw=norm(a.title).split(" ").filter(Boolean).length;
-    const bw=norm(b.title).split(" ").filter(Boolean).length;
-    return aw-bw;
-  });
-
-  return matches.slice(0,limit);
+  const seen=new Set();
+  return matches.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
 }
 
 function captureInitialContext(text){
