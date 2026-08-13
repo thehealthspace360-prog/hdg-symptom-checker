@@ -14,7 +14,7 @@ body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:
 h1{margin:0 0 5px;font-size:26px}.sub{font-size:14px;opacity:.92}
 .language{display:flex;gap:8px;margin-bottom:16px}
 .lang-btn,.choice,.secondary{background:#fff;color:var(--green);border:1px solid var(--green);border-radius:20px;padding:9px 16px;cursor:pointer;font-size:14px}
-.lang-btn.active,.choice:hover{background:var(--green);color:#fff}
+.lang-btn.active,.choice:hover,.choice.selected{background:var(--green);color:#fff}
 .status{font-size:12px;color:var(--muted);margin:0 0 14px}
 .question{margin:0 0 10px;line-height:1.45}
 textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;padding:14px;font-size:16px;resize:vertical}
@@ -57,7 +57,9 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
   </div>
 
   <div class="small">
-    HDG provides general health education and navigation only. It does not diagnose, rule out medical conditions, or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
+    <strong>English:</strong> HDG provides general health education and navigation only. It does not diagnose, rule out medical conditions, or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
+    <br><br>
+    <strong>Pidgin:</strong> HDG na for general health education and navigation only. E no dey diagnose sickness, rule out medical condition, or replace assessment by qualified healthcare professional. If the symptoms fit be emergency, abeg seek urgent medical help.
   </div>
 </div></div>
 
@@ -402,7 +404,7 @@ async function loadArticles(){
       const parsed=parseIndex(await r.text());
       if(parsed.length){
         ARTICLES=parsed;
-        status.textContent=`HDG article index ready · ${ARTICLES.length} articles`;
+        status.textContent="HDG article index ready";
         console.log("HDG index loaded:",ARTICLES.length,"articles from",path);
         return;
       }
@@ -510,10 +512,21 @@ function setQuestion(q,ph=""){
   promptEl.textContent=q;input.placeholder=ph;input.value="";
   inputArea.classList.remove("hidden");setTimeout(()=>input.focus(),0);
 }
+
+function wireChoiceButtons(){
+  chat.querySelectorAll("[data-v]").forEach(b=>{
+    b.onclick=()=>{
+      chat.querySelectorAll("[data-v]").forEach(x=>x.classList.remove("selected"));
+      b.classList.add("selected");
+      choose(b.dataset.v);
+    };
+  });
+}
+
 function askChoices(q,opts){
   inputArea.classList.add("hidden");
   showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}">${esc(o.t)}</button>`).join("")}</div>`);
-  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
+  wireChoiceButtons();
 }
 function ynOptions(includeNA=false){
   const o=[{t:C().yes,v:"yes"},{t:C().no,v:"no"},{t:C().unsure,v:"unsure"}];
@@ -672,7 +685,7 @@ function review(){
     <hr><strong>${esc(C().correct)}</strong>
     <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
   `);
-  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
+  wireChoiceButtons();
 }
 function articleBlock(limit=3){
   if(!ARTICLES.length) return `<p class="muted">HDG article index is not ready yet.</p>`;
@@ -709,7 +722,7 @@ function finalOutcome(){
     `);
   }
 
-  chat.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>choose(b.dataset.v));
+  wireChoiceButtons();
 }
 
 document.getElementById("englishBtn").onclick=()=>setLanguage("English");
