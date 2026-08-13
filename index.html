@@ -347,6 +347,7 @@ const ROUTES=[
  {id:"mens_health",cues:["testicle","testicular","scrotum","scrotal","penis","erectile","prostate","bph","varicocele","hydrocele","spermatocele"],prefer:["men's health"],penalize:["women's health"]},
  {id:"skin",cues:["acne","pimple","pimples","blackhead","whitehead","oily skin","rash","eczema","impetigo"],prefer:["skin","dermatology"],penalize:["mental health"]},
  {id:"respiratory",cues:["cough","wheeze","wheezing","asthma","breathing","shortness of breath","bronchiolitis","rsv","tuberculosis"],prefer:["respiratory","infections","children"],penalize:["mental health"]},
+ {id:"cardiovascular",cues:["high blood pressure","high bp","hypertension","blood pressure","heart attack","palpitations","chest pain","coronary artery","cholesterol"],prefer:["heart / blood vessels","heart"],penalize:["mental health","skin"]},
  {id:"neurology",cues:["headache","migraine","seizure","convulsion","stroke","dizziness","vertigo","tremor","numbness","tingling","parkinson"],prefer:["neurology","brain","emergency"],penalize:["women's health"]},
  {id:"urinary",cues:["urine","urinary","burning urine","painful urination","uti","kidney","bladder"],prefer:["urinary","kidney"],penalize:["musculoskeletal"]},
  {id:"breast",cues:["breast lump","breast pain","breast swelling","nipple"],prefer:["women's health"],penalize:["musculoskeletal"]},
@@ -362,7 +363,7 @@ function detectIntent(text){
  return "ambiguous";
 }
 function detectRoute(text){
- const n=norm(text); let best=ROUTES[ROUTES.length-1],bestScore=0;
+ const n=norm(expandQuerySynonyms(text)); let best=ROUTES[ROUTES.length-1],bestScore=0;
  ROUTES.forEach(r=>{let sc=0;r.cues.forEach(c=>{const x=norm(c);if(n.includes(x))sc+=Math.max(2,x.split(" ").length*3)});if(sc>bestScore){best=r;bestScore=sc}});
  return best;
 }
@@ -415,16 +416,45 @@ async function loadArticles(){
   console.error("HDG_INDEX_ERROR: no valid index file found");
 }
 
+
+const QUERY_SYNONYMS=[
+  {patterns:[/\bhigh bp\b/gi,/\bhypertension\b/gi],replace:"high blood pressure"},
+  {patterns:[/\blow bp\b/gi,/\bhypotension\b/gi],replace:"low blood pressure"},
+  {patterns:[/\bbp\b/gi],replace:"blood pressure"},
+  {patterns:[/\bheart attack\b/gi,/\bmyocardial infarction\b/gi],replace:"heart attack"},
+  {patterns:[/\bstroke\b/gi,/\bcva\b/gi],replace:"stroke"},
+  {patterns:[/\buti\b/gi,/\burinary tract infection\b/gi],replace:"urinary tract infection"},
+  {patterns:[/\bsob\b/gi,/\bshortness of breath\b/gi],replace:"shortness of breath"}
+];
+
+function expandQuerySynonyms(text){
+  let out=String(text||"");
+  QUERY_SYNONYMS.forEach(item=>{
+    item.patterns.forEach(p=>{
+      p.lastIndex=0;
+      if(p.test(out)){
+        p.lastIndex=0;
+        out += " " + item.replace;
+      }else{
+        p.lastIndex=0;
+      }
+    });
+  });
+  return out;
+}
+
 function searchWords(s){
-  return [...new Set(norm(s).split(" ").filter(w=>w.length>2&&!STOP_WORDS.has(w)))];
+  const expanded=expandQuerySynonyms(s);
+  return [...new Set(norm(expanded).split(" ").filter(w=>w.length>2&&!STOP_WORDS.has(w)))];
 }
 
 function scoreArticle(a,q){
-  const ws=searchWords(q);
+  const expandedQuery=expandQuerySynonyms(q);
+  const ws=searchWords(expandedQuery);
   const title=norm(a.title);
   const keys=norm(a.keywords);
   const cat=norm(a.category);
-  const nq=norm(q);
+  const nq=norm(expandedQuery);
 
   let score=0;
   let lexicalMatches=0;
@@ -469,7 +499,7 @@ function scoreArticle(a,q){
 
   const route=ROUTES.find(r=>r.id===data.route)||ROUTES[ROUTES.length-1];
   score+=routeScore(a,route);
-  const query=norm(q);
+  const query=norm(expandedQuery);
 
   if(query.includes("knee")){
     if(title.includes("knee")||keys.includes("knee"))score+=180;
@@ -485,6 +515,14 @@ function scoreArticle(a,q){
     if(cat.includes("men's health"))score+=140;
     if(cat.includes("women's health"))score-=180;
   }
+
+  if(query.includes("high blood pressure")){
+    if(title.includes("high blood pressure")) score+=320;
+    if(cat.includes("heart")) score+=110;
+    if(title.includes("blood pressure monitoring")) score+=60;
+    if(title.includes("blood sugar")||title.includes("crp blood test")||title.includes("blood disorders")) score-=260;
+  }
+
   return score;
 }
 
@@ -669,7 +707,7 @@ function articleOverview(a,topic){
 }
 function learnMode(){
  step="learn_done";inputArea.classList.add("hidden");
- const topic=data.topic||data.main,m=findLearnArticles(topic,4),main=m[0];
+ const topic=data.topic||data.main,m=findLearnArticles(expandQuerySynonyms(topic),4),main=m[0];
  if(!main){
    showCard(`<span class="badge green">Learn</span><br><strong>${esc(topic)}</strong><p>${esc(language==="Pidgin"?"I no find close HDG guide for this topic yet.":"I couldn't find a close HDG guide for this topic yet.")}</p><div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`);
    document.getElementById("restart").onclick=reset;return;
