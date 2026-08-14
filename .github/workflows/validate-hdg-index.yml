@@ -1,0 +1,49 @@
+name: Validate HDG Article Index
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Once weekly. Change or remove this if you prefer manual-only checks.
+    - cron: "15 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-index:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate HDG article index
+        id: validate
+        continue-on-error: true
+        run: |
+          python hdg_index_validator.py \
+            --index HDG_Public_Article_Index.txt \
+            --sitemap https://www.healthdecodedguide.com/sitemap.xml \
+            --config hdg_index_config.json \
+            --output hdg_index_check
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: HDG-index-check
+          path: |
+            hdg_index_check/HDG_Index_Validation_Report.md
+            hdg_index_check/HDG_Index_Validation_Report.json
+            hdg_index_check/HDG_New_Article_Stubs.txt
+          if-no-files-found: error
+
+      - name: Fail workflow if metadata errors exist
+        if: steps.validate.outcome == 'failure'
+        run: |
+          echo "HDG index metadata errors were found. Download the HDG-index-check artifact and review the report."
+          exit 1
