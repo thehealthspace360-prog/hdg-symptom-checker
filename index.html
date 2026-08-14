@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v45: starter suggestion buttons always visible; hover/focus fills and highlights them -->
+<!-- v46: entity-first Learn retrieval; enlarged prostate/BPH fallback fixed -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -548,6 +548,50 @@ function detectRoute(text){
  ROUTES.forEach(r=>{let sc=0;r.cues.forEach(c=>{const x=norm(c);if(n.includes(x))sc+=Math.max(2,x.split(" ").length*3)});if(sc>bestScore){best=r;bestScore=sc}});
  return best;
 }
+
+function canonicalMedicalTopic(text){
+  const n=norm(text);
+
+  if(/\b(enlarged prostate|prostate enlargement|big prostate|bph|benign prostatic hyperplasia)\b/.test(n)){
+    return "prostate enlargement";
+  }
+  if(/\b(erection|erection problem|erection problems|erection difficulty|impotence|erectile dysfunction)\b/.test(n)){
+    return "erectile dysfunction";
+  }
+  if(/\b(pcos|polycystic ovary syndrome)\b/.test(n)){
+    return "pcos";
+  }
+  return "";
+}
+
+function isStrongEntityMatch(a,topic){
+  const canonical=canonicalMedicalTopic(topic);
+  if(!canonical) return false;
+
+  const title=norm(a.title);
+  const keys=norm(a.keywords);
+
+  if(canonical==="prostate enlargement"){
+    return title.includes("prostate enlargement") ||
+           keys.includes("enlarged prostate") ||
+           keys.includes("prostate enlargement") ||
+           /\bbph\b/.test(title+" "+keys);
+  }
+
+  if(canonical==="erectile dysfunction"){
+    return title.includes("erectile dysfunction") ||
+           keys.includes("erectile dysfunction");
+  }
+
+  if(canonical==="pcos"){
+    return /\bpcos\b/.test(title+" "+keys) ||
+           title.includes("polycystic ovary syndrome") ||
+           keys.includes("polycystic ovary syndrome");
+  }
+
+  return false;
+}
+
 function cleanLearnTopic(text){
  let n=String(text||"").trim();
  [/^what\s+(?:is|are)\s+/i,/^tell\s+me\s+about\s+/i,/^tell\s+me\s+more\s+about\s+/i,/^i\s+(?:want|would like)\s+to\s+learn\s+(?:more\s+)?about\s+/i,/^learn\s+(?:more\s+)?about\s+/i,/^explain\s+/i,/^information\s+about\s+/i,/^info\s+about\s+/i,/^wetin\s+be\s+/i].forEach(p=>n=n.replace(p,""));
@@ -858,6 +902,8 @@ function fuzzyExpandQuery(text){
 }
 
 const QUERY_SYNONYMS=[
+  {patterns:[/\benlarged prostate\b/gi,/\bbig prostate\b/gi,/\bbenign prostatic hyperplasia\b/gi,/\bbph\b/gi],replace:"prostate enlargement bph"},
+
   {patterns:[/\berection\b/gi,/\berection problem\b/gi,/\berection problems\b/gi,/\berection difficulty\b/gi,/\bdifficulty getting an erection\b/gi,/\bdifficulty keeping an erection\b/gi,/\bimpotence\b/gi],replace:"erectile dysfunction"},
   {patterns:[/\bi can(?:not|'t|t) see\b/gi,/\bcannot see\b/gi,/\bunable to see\b/gi],replace:"vision loss blindness"},
   {patterns:[/\bi can(?:not|'t|t) hear\b/gi,/\bcannot hear\b/gi,/\bunable to hear\b/gi],replace:"hearing loss deafness"},
@@ -970,6 +1016,14 @@ function scoreArticle(a,q){
     if(title.includes("erectile dysfunction")) score+=360;
     if(cat.includes("men's health")) score+=120;
     if(cat.includes("women's health")) score-=220;
+  }
+
+  if(query.includes("prostate enlargement") || query.includes("enlarged prostate") || /\bbph\b/.test(query)){
+    if(title.includes("prostate enlargement")) score+=420;
+    if(/\bbph\b/.test(title+" "+keys)) score+=180;
+    if(cat.includes("men's health")) score+=120;
+    if(title.includes("prostate cancer")) score-=320;
+    if(cat.includes("general")) score-=80;
   }
 
   return score;
@@ -1777,9 +1831,35 @@ function findLearnArticles(topic,limit=4){
 
   data.patient=previousPatient;
 
+  // Strong disease/entity queries should never return an unrelated article merely
+  // to preserve the selected language. If no close match exists in that language,
+  // put the correct article from the other language first.
+  const canonical=canonicalMedicalTopic(topic);
+  if(canonical && !wantsChild){
+    const sameLanguageEntity=matches.find(a=>isStrongEntityMatch(a,topic));
+
+    if(!sameLanguageEntity){
+      const crossLanguageEntity=ARTICLES
+        .filter(a=>isStrongEntityMatch(a,topic))
+        .map(a=>({...a,score:scoreArticle(a,expandQuerySynonyms(topic))+topicSpecificityScore(a,topic)}))
+        .sort((a,b)=>b.score-a.score)[0];
+
+      if(crossLanguageEntity){
+        matches=matches.filter(a=>a.url!==crossLanguageEntity.url);
+        matches.unshift({...crossLanguageEntity,score:99999});
+      }
+    }else{
+      matches=matches.sort((a,b)=>{
+        if(a.url===sameLanguageEntity.url) return -1;
+        if(b.url===sameLanguageEntity.url) return 1;
+        return b.score-a.score;
+      });
+    }
+  }
+
   // For a general learning query, do not lead with a narrower subtype just because
   // the preferred language lacks a direct general article.
-  if(!wantsChild){
+  if(!wantsChild && !canonical){
     const generalFallback=findGeneralFallback(topic);
     if(generalFallback){
       const already=matches.some(a=>a.url===generalFallback.url);
