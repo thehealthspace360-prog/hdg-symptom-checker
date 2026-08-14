@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v37: starter suggestions return to main search with selected text prefilled -->
+<!-- v38: related articles are clickable roll-open accordion -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -44,10 +44,12 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 .learn-focus{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 
 .learn-focus button{background:#fff;color:var(--green);border:1px solid var(--green);border-radius:999px;padding:8px 12px;cursor:pointer}
-.related-jump{display:flex;justify-content:center;margin:14px 0 6px}
-.related-jump button{background:transparent;border:0;color:var(--green);font-size:14px;font-weight:bold;cursor:pointer}
-.related-arrow{font-size:22px;line-height:1;display:block;margin-top:2px}
-.related-section{scroll-margin-top:18px}
+.related-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding:12px 14px;background:#fff;border:1px solid #d9e3de;border-radius:10px;color:var(--green);font-weight:700;cursor:pointer;text-align:left}
+.related-toggle:hover{background:#f5f8f6}
+.related-arrow{font-size:20px;line-height:1;transition:transform .22s ease}
+.related-toggle.open .related-arrow{transform:rotate(180deg)}
+.related-section{max-height:0;overflow:hidden;opacity:0;transition:max-height .35s ease,opacity .25s ease;padding:0 2px}
+.related-section.open{max-height:900px;opacity:1;padding-top:8px}
 .secondary{border-radius:9px}.hidden{display:none}
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;margin-bottom:8px}
 .badge.red{background:#fee4e2;color:#912018}.badge.amber{background:#fff0c2;color:#7a4a00}.badge.green{background:#e4f2ec;color:#155544}
@@ -1550,8 +1552,11 @@ function learnMode(){
 
   const related=matches.slice(1,4);
   const relatedHtml=related.length
-    ? `<div class="related-jump"><button type="button" id="jumpRelated">${language==="Pidgin"?"See related articles":"See related articles"}<span class="related-arrow">↓</span></button></div>
-       <div id="relatedArticles" class="related-section"><hr><strong>${language==="Pidgin"?"Related HDG articles":"Related HDG articles"}</strong>`+
+    ? `<button type="button" id="toggleRelated" class="related-toggle" aria-expanded="false">
+         <span>${language==="Pidgin"?"Related HDG articles":"Related HDG articles"}</span>
+         <span class="related-arrow">⌄</span>
+       </button>
+       <div id="relatedArticles" class="related-section">`+
       related.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("")+
       `</div>`
     : "";
@@ -1572,10 +1577,14 @@ function learnMode(){
 
   document.getElementById("restart").onclick=reset;
 
-  const jumpRelated=document.getElementById("jumpRelated");
-  if(jumpRelated){
-    jumpRelated.onclick=()=>{
-      document.getElementById("relatedArticles")?.scrollIntoView({behavior:"smooth",block:"start"});
+  const toggleRelated=document.getElementById("toggleRelated");
+  const relatedArticles=document.getElementById("relatedArticles");
+  if(toggleRelated && relatedArticles){
+    toggleRelated.onclick=()=>{
+      const opening=!relatedArticles.classList.contains("open");
+      relatedArticles.classList.toggle("open",opening);
+      toggleRelated.classList.toggle("open",opening);
+      toggleRelated.setAttribute("aria-expanded",opening?"true":"false");
     };
   }
 
