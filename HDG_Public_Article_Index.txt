@@ -3605,11 +3605,11 @@ KEYWORDS: parkinsons; disease; pidgin; english
 
 ARTICLE 451
 TITLE: PCOS Irregular Period Hormone Problem
-LANGUAGE: English
+LANGUAGE: Pidgin
 CATEGORY: Women's Health
 EMERGENCY: NO
 URL: https://www.healthdecodedguide.com/pcos-irregular-period-hormone-problem
-KEYWORDS: pcos; irregular; period; menstruation; menses; monthly flow; hormone; problem
+KEYWORDS: pcos; polycystic ovary syndrome; irregular period; irregular periods; menstruation; menses; monthly flow; hormone problem; hormone wahala; period no regular; pidgin; english
 
 ARTICLE 452
 TITLE: Pee When I Cough Or Laugh
