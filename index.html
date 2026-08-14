@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v38: related articles are clickable roll-open accordion -->
+<!-- v45: starter suggestion buttons always visible; hover/focus fills and highlights them -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -27,9 +27,30 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 .choices{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
 
 .why-box{margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(0,0,0,.035);line-height:1.45}
-.suggestion-wrap{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
-.suggestion-chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;font-size:13px;line-height:1.25;text-align:left}
-.suggestion-chip:hover{background:#f3f8f5}
+.suggestion-wrap{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 14px}
+.suggestion-chip{
+  border:1.5px solid var(--green);
+  background:#fff;
+  color:var(--green);
+  border-radius:999px;
+  padding:9px 14px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  line-height:1.25;
+  text-align:left;
+  transition:background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.suggestion-chip:hover,
+.suggestion-chip:focus-visible{
+  background:var(--green);
+  color:#fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.10);
+  outline:none;
+}
+.suggestion-chip:active{
+  transform:translateY(1px);
+}
 .choice{border-radius:9px}
 .summary-row{margin:7px 0}
 .article{background:#fff;border:1px solid #ddd;border-radius:9px;padding:13px;margin-top:10px}
@@ -202,7 +223,7 @@ const IMMEDIATE_DANGER=[
   "sudden weakness one side","sudden numbness one side",
   "bleeding won't stop","bleeding wont stop","uncontrolled bleeding",
   "seizure lasting more than 5 minutes","seizure over 5 minutes","seizure not stopping",
-  "another seizure without recovering","kill myself","harm myself","suicidal plan","suicide plan",
+  "another seizure without recovering","kill myself","harm myself","hurt myself","end my life","take my life","want to die","wanna die","wish i was dead","suicidal","suicide","suicidal thoughts","suicidal ideation","suicidal plan","suicide plan","self harm","self-harm","cut myself","cutting myself","overdose myself","i might overdose","i want to disappear forever",
   "no fit breathe"
 ];
 
@@ -548,11 +569,22 @@ function parseIndex(text){
       if(m) f[m[1].trim()]=m[2].trim();
     });
     if(!f.TITLE||!f.URL) return null;
-    return {
+    let article={
       title:f.TITLE,url:f.URL,language:f.LANGUAGE||"",category:f.CATEGORY||"",
       emergency:f["EMERGENCY FLAG"]||f.EMERGENCY||"",keywords:f.KEYWORDS||"",
       searchable:norm([f.TITLE,f.CATEGORY,f.KEYWORDS].join(" "))
     };
+
+    // Temporary metadata correction: this HDG PCOS page is written in Pidgin,
+    // although the current public index labels it as English.
+    if(norm(article.url).includes("pcos-irregular-period-hormone-problem")){
+      article.language="Pidgin";
+      article.category="Women's Health";
+      article.keywords=[article.keywords,"pcos","polycystic ovary syndrome","irregular period","hormone problem","pidgin"].join("; ");
+      article.searchable=norm([article.title,article.category,article.keywords].join(" "));
+    }
+
+    return article;
   }).filter(Boolean);
 }
 
@@ -1017,8 +1049,16 @@ function captureAnswerState(){
   if(answerHistory.length>30)answerHistory.shift();
   updateBackButton();
 }
+function hideBackOnFinalScreen(){
+  backRow.classList.add("hidden");
+}
+
 function updateBackButton(){
-  const show=answerHistory.length>0&&!["learn_done","done"].includes(step);
+  if(step==="done" || step==="learn_done"){
+    backRow.classList.add("hidden");
+    return;
+  }
+  const show=answerHistory.length>0;
   backRow.classList.toggle("hidden",!show);
   backBtn.textContent=language==="Pidgin"?"← Go back / Change answer":"← Back / Change answer";
 }
@@ -1041,6 +1081,87 @@ function restorePreviousAnswer(){
 }
 backBtn.onclick=restorePreviousAnswer;
 
+
+
+/* ===== Ask HDG privacy-conscious analytics (v44) =====
+   No raw question, symptom, duration, free-text answer, or clinical answer is sent.
+   The iframe sends only predefined product events + coarse metadata to its parent page.
+*/
+const HDG_ANALYTICS_VERSION="v44";
+
+function safeAnalyticsValue(v){
+  if(v===undefined || v===null) return "";
+  return String(v).slice(0,80);
+}
+
+function hdgTrack(eventName,params={}){
+  const safe={
+    assistant_version:HDG_ANALYTICS_VERSION,
+    language:safeAnalyticsValue(language),
+    ...Object.fromEntries(
+      Object.entries(params)
+        .filter(([k])=>[
+          "intent","topic_family","patient_group","result_type","article_category",
+          "article_position","source","focus","helpful","disposition","has_results"
+        ].includes(k))
+        .map(([k,v])=>[k,safeAnalyticsValue(v)])
+    )
+  };
+
+  // Primary route when Ask HDG is embedded in Webador.
+  try{
+    if(window.parent && window.parent!==window){
+      window.parent.postMessage({type:"HDG_ANALYTICS",event:eventName,params:safe},"*");
+    }
+  }catch(e){}
+
+  // Optional fallback if a GA tag is ever added directly to the GitHub Pages app.
+  try{
+    if(typeof window.gtag==="function"){
+      window.gtag("event",eventName,safe);
+    }
+  }catch(e){}
+}
+
+function analyticsTopicFamily(){
+  const r=data.route || detectRoute(data.main||"").id || "general";
+  const allowed=[
+    "womens_health","mens_health","mental_health","musculoskeletal",
+    "respiratory","neurological","gastrointestinal","skin","infectious",
+    "cardiovascular","general"
+  ];
+  return allowed.includes(r)?r:"general";
+}
+
+function analyticsPatientGroup(){
+  return data.patient==="child"?"child":data.patient==="adult"?"adult":"unknown";
+}
+
+function analyticsArticleCategory(a){
+  // Category is public article metadata, not user-entered health text.
+  return a && a.category ? a.category : "uncategorized";
+}
+
+function wireTrackedArticleLinks(container=document){
+  container.querySelectorAll('a[href*="healthdecodedguide.com"]').forEach(a=>{
+    if(a.dataset.hdgTracked==="1") return;
+    a.dataset.hdgTracked="1";
+    a.addEventListener("click",()=>{
+      const article=a.closest(".article");
+      const siblings=article && article.parentElement
+        ? Array.from(article.parentElement.querySelectorAll(":scope > .article"))
+        : [];
+      const pos=article ? Math.max(1,siblings.indexOf(article)+1) : 1;
+      hdgTrack("ask_hdg_article_click",{
+        intent:data.intent||"unknown",
+        topic_family:analyticsTopicFamily(),
+        patient_group:analyticsPatientGroup(),
+        article_position:pos,
+        source:article && article.closest("#relatedArticles")?"related":"recommended"
+      });
+    });
+  });
+}
 
 function C(){return COPY[language]}
 function showCard(html,type="normal"){
@@ -1122,6 +1243,7 @@ function renderStarterSuggestions(){
     const b=document.createElement("button");
     b.type="button";b.className="suggestion-chip";b.textContent=text;
     b.onclick=()=>{
+      hdgTrack("ask_hdg_starter_selected",{source:"starter_suggestion"});
       // A suggestion should take the user back to the main search screen,
       // prefill the selected text, and wait for the user to press Continue.
       step="main";
@@ -1149,6 +1271,7 @@ function reset(){
 }
 function setLanguage(lang){
   language=lang;
+  hdgTrack("ask_hdg_language_selected",{source:"language_toggle"});
   document.getElementById("englishBtn").classList.toggle("active",lang==="English");
   document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
   reset();
@@ -1291,14 +1414,158 @@ const TRAUMA_TERMS=[
   "deep cut","large wound","serious burn","burn injury"
 ];
 
+
+
+
+function lumpOrBirthmarkUrgentDetected(text){
+  const n=norm(text||"");
+
+  const lumpTerms=[
+    "lump","lumps","new lump","swelling lump","breast lump","neck lump",
+    "testicular lump","testicle lump","armpit lump","groin lump",
+    "mass","new mass"
+  ];
+  if(lumpTerms.some(x=>n.includes(norm(x)))) return true;
+
+  const birthmarkTerms=["birthmark","birth mark","mole","skin mark"];
+  const birthmarkPresent=birthmarkTerms.some(x=>n.includes(norm(x)));
+
+  if(birthmarkPresent){
+    const concernTerms=[
+      "new","changing","changed","getting bigger","growing","larger",
+      "bleeding","itching","painful","irregular","different colour",
+      "different color","darkening","raised","swollen","worried",
+      "concerned","looks different"
+    ];
+    return concernTerms.some(x=>n.includes(norm(x)));
+  }
+
+  return false;
+}
+
+function hardStopLumpOrBirthmark(){
+  hdgTrack("ask_hdg_safety_route",{disposition:"medical_assessment",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
+  inputArea.classList.add("hidden");
+  step="done";
+  hideBackOnFinalScreen();
+
+  const title=language==="Pidgin"
+    ? "This lump or changing skin mark need medical assessment."
+    : "This lump or changing skin mark needs medical assessment.";
+
+  const body=language==="Pidgin"
+    ? "Abeg arrange medical assessment soon instead of depending only on Ask HDG articles. Most lumps or skin marks no mean serious disease, but a clinician may need examine am properly, especially if e new, dey grow, change, bleed, or get other symptoms."
+    : "Please arrange medical assessment soon rather than relying only on Ask HDG articles. Many lumps and skin marks are not caused by serious disease, but a clinician may need to examine them properly, especially if they are new, growing, changing, bleeding, or associated with other symptoms.";
+
+  showCard(`<span class="badge amber">Medical assessment recommended</span><br><strong>${esc(title)}</strong><br><br>${esc(body)}
+  <div class="why-box"><strong>${language==="Pidgin"?"Why Ask HDG dey recommend this":"Why Ask HDG recommends this"}</strong><br>${esc(
+    language==="Pidgin"
+      ?"Lump or skin mark wey change usually need physical examination before person fit know wetin e be."
+      :"A lump or changing skin mark often needs physical examination before its cause can be assessed properly."
+  )}</div>
+  <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"urgent");
+
+  document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
+}
+
+function severeMentalHealthDetected(text){
+  const n=norm(text||"");
+
+  const conditionPresent=[
+    "depression","depressed","anxiety","anxious","panic attacks","panic attack"
+  ].some(x=>n.includes(norm(x)));
+
+  if(!conditionPresent) return false;
+
+  const severeMarkers=[
+    "severe","very severe","extreme","extremely","unbearable","overwhelming",
+    "cannot cope","can't cope","cant cope","not coping",
+    "cannot function","can't function","cant function",
+    "unable to function","cannot work","can't work","cant work",
+    "cannot sleep at all","can't sleep at all","cant sleep at all",
+    "not sleeping at all","cannot eat","can't eat","cant eat",
+    "not eating","unable to eat","constant panic","panic all day",
+    "getting much worse","rapidly worsening","worsening fast"
+  ];
+
+  return severeMarkers.some(x=>n.includes(norm(x)));
+}
+
+function hardStopSevereMentalHealth(){
+  hdgTrack("ask_hdg_safety_route",{disposition:"urgent_mental_health",topic_family:"mental_health",patient_group:analyticsPatientGroup()});
+  inputArea.classList.add("hidden");
+  step="done";
+  hideBackOnFinalScreen();
+
+  const title=language==="Pidgin"
+    ? "Severe mental health symptoms need urgent assessment."
+    : "Severe mental health symptoms need urgent assessment.";
+
+  const body=language==="Pidgin"
+    ? "Because the anxiety or depression you describe severe or dey seriously affect how you dey function, abeg contact a doctor or mental health professional urgently for assessment instead of depending only on Ask HDG articles. If suicidal thoughts, self-harm thoughts, or immediate danger dey involved, seek emergency/crisis help now."
+    : "Because the anxiety or depression you described is severe or is seriously affecting your ability to function, please contact a doctor or mental health professional urgently for assessment rather than relying only on Ask HDG articles. If suicidal thoughts, self-harm thoughts, or immediate danger are involved, seek emergency/crisis help now.";
+
+  showCard(`<span class="badge amber">Urgent mental health assessment</span><br><strong>${esc(title)}</strong><br><br>${esc(body)}
+  <div class="why-box"><strong>${language==="Pidgin"?"Why Ask HDG dey recommend this":"Why Ask HDG recommends this"}</strong><br>${esc(
+    language==="Pidgin"
+      ?"Severe anxiety or depression fit seriously affect daily function and need timely professional assessment."
+      :"Severe anxiety or depression can significantly affect daily functioning and warrants timely professional assessment."
+  )}</div>
+  <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"urgent");
+
+  document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
+}
+
+function mentalHealthCrisisDetected(text){
+  const n=norm(text||"");
+  const phrases=[
+    "kill myself","harm myself","hurt myself","end my life","take my life",
+    "want to die","wanna die","wish i was dead","suicidal","suicide",
+    "suicidal thoughts","suicidal ideation","suicidal plan","suicide plan",
+    "self harm","self-harm","cut myself","cutting myself","overdose myself",
+    "i might overdose","i want to disappear forever"
+  ];
+  return phrases.some(x=>n.includes(norm(x)));
+}
+
+function hardStopMentalHealthCrisis(){
+  hdgTrack("ask_hdg_safety_route",{disposition:"mental_health_crisis",topic_family:"mental_health",patient_group:analyticsPatientGroup()});
+  inputArea.classList.add("hidden");
+  step="done";
+  hideBackOnFinalScreen();
+
+  const title=language==="Pidgin"
+    ? "⚠️ This one need urgent mental health support."
+    : "⚠️ This needs urgent mental health support.";
+
+  const body=language==="Pidgin"
+    ? "If you dey think about suicide or harming yourself, abeg no rely on Ask HDG articles. Contact emergency services now if you dey immediate danger. If you no dey immediate danger but you get suicidal thoughts or self-harm thoughts, contact a crisis service or health professional urgently."
+    : "If you are thinking about suicide or harming yourself, please do not rely on Ask HDG articles. Contact emergency services now if you are in immediate danger. If you are not in immediate danger but have suicidal or self-harm thoughts, contact a crisis service or health professional urgently.";
+
+  showCard(`<span class="badge red">Mental health crisis</span><br><strong>${esc(title)}</strong><br><br>${esc(body)}
+  <div class="why-box"><strong>${language==="Pidgin"?"Why Ask HDG dey recommend this":"Why Ask HDG recommends this"}</strong><br>${esc(
+    language==="Pidgin"
+      ?"Suicidal thoughts and self-harm thoughts need real-time human support and safety assessment, not article recommendations."
+      :"Suicidal thoughts and self-harm thoughts need real-time human support and safety assessment rather than article recommendations."
+  )}</div>
+  <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"emergency");
+
+  document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
+}
+
 function traumaDetected(text){
   const n=norm(normalizeEverydaySymptoms(text||""));
   return TRAUMA_TERMS.some(x=>n.includes(norm(x)));
 }
 
 function hardStopTrauma(){
+  hdgTrack("ask_hdg_safety_route",{disposition:"trauma_urgent",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
+  hideBackOnFinalScreen();
 
   const title=language==="Pidgin"
     ? "⚠️ Injury or trauma need medical assessment."
@@ -1317,28 +1584,35 @@ function hardStopTrauma(){
   <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"urgent");
 
   document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
 }
 
 function hardStopUrgent(title,body){
+  hdgTrack("ask_hdg_safety_route",{disposition:"urgent",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
+  hideBackOnFinalScreen();
   const reason=safetyReason();
   showCard(`<span class="badge amber">Urgent medical assessment</span><br><strong>${esc(title)}</strong><br><br>${esc(body)}
   <div class="why-box"><strong>${language==="Pidgin"?"Why Ask HDG dey recommend this":"Why Ask HDG recommends this"}</strong><br>${esc(reason)}</div>
   ${uncertaintyBox()}
   <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"urgent");
   document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
 }
 
 function hardStopEmergency(){
+  hdgTrack("ask_hdg_safety_route",{disposition:"emergency",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
+  hideBackOnFinalScreen();
   const reason=safetyReason();
   showCard(`<span class="badge red">Emergency</span><br><strong>${esc(C().emergencyTitle)}</strong><br><br>${esc(C().emergencyBody)}
   <div class="why-box"><strong>${language==="Pidgin"?"Why Ask HDG dey recommend this":"Why Ask HDG recommends this"}</strong><br>${esc(reason)}</div>
   ${uncertaintyBox()}
   <div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`,"emergency");
   document.getElementById("restart").onclick=reset;
+  hideBackOnFinalScreen();
 }
 function potentialWarning(){
   data.potentialUrgent=true;
@@ -1546,9 +1820,19 @@ function learnMode(){
   const topic=data.topic||data.main,matches=findLearnArticles(expandQuerySynonyms(topic),4),main=matches[0];
 
   if(!main){
+    hdgTrack("ask_hdg_no_match",{
+      intent:"learn",topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),result_type:"no_match",has_results:"no"
+    });
     showCard(`<span class="badge green">Learn</span><br><strong>${esc(topic)}</strong><p>${esc(language==="Pidgin"?"I no find HDG guide wey close enough to recommend confidently for this topic yet.":"I couldn't find an HDG guide close enough to recommend confidently for this topic yet.")}</p><div class="actions"><button type="button" class="secondary" id="restart">${esc(C().retry)}</button></div>`);
     document.getElementById("restart").onclick=reset;return;
   }
+
+  hdgTrack("ask_hdg_recommendation_shown",{
+    intent:"learn",topic_family:analyticsTopicFamily(),
+    patient_group:analyticsPatientGroup(),result_type:"learn",has_results:"yes",
+    article_category:analyticsArticleCategory(main)
+  });
 
   const related=matches.slice(1,4);
   const relatedHtml=related.length
@@ -1582,6 +1866,9 @@ function learnMode(){
   if(toggleRelated && relatedArticles){
     toggleRelated.onclick=()=>{
       const opening=!relatedArticles.classList.contains("open");
+      if(opening) hdgTrack("ask_hdg_related_opened",{
+        intent:"learn",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
+      });
       relatedArticles.classList.toggle("open",opening);
       toggleRelated.classList.toggle("open",opening);
       toggleRelated.setAttribute("aria-expanded",opening?"true":"false");
@@ -1591,6 +1878,10 @@ function learnMode(){
   chat.querySelectorAll("[data-learn-focus]").forEach(btn=>{
     btn.onclick=()=>{
       const focus=btn.dataset.learnFocus,box=document.getElementById("learnFocusResults");
+      hdgTrack("ask_hdg_learn_focus",{
+        intent:"learn",topic_family:analyticsTopicFamily(),
+        patient_group:analyticsPatientGroup(),focus:focus
+      });
       if(focus==="full"){
         box.innerHTML=`<div class="reason-box"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${language==="Pidgin"?"Open full HDG guide":"Open the full HDG guide"}</a></div>`;return;
       }
@@ -1599,8 +1890,10 @@ function learnMode(){
       box.innerHTML=focused.length
         ? `<div class="reason-box"><strong>Closest HDG resources</strong>${focused.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a></div>`).join("")}</div>`
         : `<div class="reason-box">${language==="Pidgin"?"HDG no get separate close resource for this part yet. Use the main guide above.":"HDG does not have a separate close resource for this section yet. Use the main guide above."}</div>`;
+      wireTrackedArticleLinks(box);
     };
   });
+  wireTrackedArticleLinks(chat);
 }
 function askIntent(){
  step="intent";
@@ -1636,8 +1929,16 @@ function continueAfterDurationSelective(){
 }
 
 function beginSymptomFlow(){
+ if(mentalHealthCrisisDetected(data.main)){hardStopMentalHealthCrisis();return;}
+ if(severeMentalHealthDetected(data.main)){hardStopSevereMentalHealth();return;}
+ if(lumpOrBirthmarkUrgentDetected(data.main)){hardStopLumpOrBirthmark();return;}
  if(immediateDanger(data.main)){hardStopEmergency();return;}
  if(traumaDetected(data.main)){hardStopTrauma();return;}
+
+ // Adult-only life-stage topics should never trigger an "adult or child?" question.
+ if(queryExplicitlyAdultOnly(data.main)){
+   data.patient="adult";
+ }
 
  data.family=detectFamily(data.main);
  if(data.family!=="general")potentialWarning();
@@ -1672,6 +1973,12 @@ function submitText(){
     data.intent=detectIntent(v);
     data.topic=cleanLearnTopic(v);
     data.route=detectRoute(v).id;
+    hdgTrack("ask_hdg_started",{
+      intent:data.intent||"unknown",
+      topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),
+      source:"typed_or_prefilled"
+    });
 
     if(data.intent==="learn"){learnMode();return;}
     if(data.intent==="ambiguous"){askIntent();return;}
@@ -1690,6 +1997,10 @@ function submitText(){
 
   if(step==="other"){
     data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
+    const mentalContext=[data.main,data.other].filter(Boolean).join(" ");
+    if(mentalHealthCrisisDetected(mentalContext)){hardStopMentalHealthCrisis();return;}
+    if(severeMentalHealthDetected(mentalContext)){hardStopSevereMentalHealth();return;}
+    if(lumpOrBirthmarkUrgentDetected(mentalContext)){hardStopLumpOrBirthmark();return;}
     if(immediateDanger(data.other)){hardStopEmergency();return;}
     if(traumaDetected(data.other)){hardStopTrauma();return;}
     if(normalFlowNeuroStop()) return;
@@ -1715,6 +2026,14 @@ function choose(v){
 
   if(step==="intent"){
     data.intent=v;
+    hdgTrack("ask_hdg_intent_selected",{
+      intent:v,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
+    });
+
+    if(queryExplicitlyAdultOnly(data.main)){
+      data.patient="adult";
+    }
+
     if(v==="learn"){learnMode();return;}
     beginSymptomFlow();return;
   }
@@ -1763,10 +2082,15 @@ function choose(v){
   }
 
   if(step==="helpful"){
+    hdgTrack("ask_hdg_helpful_response",{
+      intent:data.intent||"symptom",topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),helpful:v
+    });
     if(v==="yes"){
       inputArea.classList.add("hidden");
       step="done";
       showCard(C().thanks);
+      hideBackOnFinalScreen();
       renderStarterSuggestions();
     }else{
       step="retry";
@@ -1777,11 +2101,16 @@ function choose(v){
   }
 
   if(step==="retry"){
+    hdgTrack("ask_hdg_retry_selected",{
+      intent:data.intent||"unknown",topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),source:v==="yes"?"retry_yes":"retry_no"
+    });
     if(v==="yes") reset();
     else{
       inputArea.classList.add("hidden");
       step="done";
       showCard(C().thanks);
+      hideBackOnFinalScreen();
       renderStarterSuggestions();
     }
   }
@@ -1864,7 +2193,11 @@ function articleBlock(limit=3){
   return m.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("");
 }
 function finalOutcome(){
-  if(traumaDetected([data.main,data.other].filter(Boolean).join(" "))){hardStopTrauma();return;}
+  const mentalContext=[data.main,data.other].filter(Boolean).join(" ");
+  if(mentalHealthCrisisDetected(mentalContext)){hardStopMentalHealthCrisis();return;}
+  if(severeMentalHealthDetected(mentalContext)){hardStopSevereMentalHealth();return;}
+  if(lumpOrBirthmarkUrgentDetected(mentalContext)){hardStopLumpOrBirthmark();return;}
+  if(traumaDetected(mentalContext)){hardStopTrauma();return;}
   if(normalFlowNeuroStop()) return;
 
   const disposition=safetyDisposition();
@@ -1884,6 +2217,10 @@ function finalOutcome(){
 
   if(disposition==="urgent"){
     step="helpful";
+    hdgTrack("ask_hdg_recommendation_shown",{
+      intent:"symptom",topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),result_type:"urgent",has_results:"yes"
+    });
     showCard(`
       <span class="badge amber">Urgent assessment</span><br>
       <strong>${esc(C().urgentTitle)}</strong><br><br>${esc(C().urgentBody)}
@@ -1896,6 +2233,10 @@ function finalOutcome(){
     `,"urgent");
   }else{
     step="helpful";
+    hdgTrack("ask_hdg_recommendation_shown",{
+      intent:"symptom",topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup(),result_type:"navigation",has_results:"yes"
+    });
     showCard(`
       <span class="badge green">Health navigation</span><br>
       <strong>${esc(C().rec)}</strong>
@@ -1908,6 +2249,7 @@ function finalOutcome(){
   }
 
   wireChoiceButtons();
+  wireTrackedArticleLinks(chat);
 }
 
 document.getElementById("englishBtn").onclick=()=>setLanguage("English");
