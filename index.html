@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v46: entity-first Learn retrieval; enlarged prostate/BPH fallback fixed -->
+<!-- v52: intent buttons remember their own screen; Symptom→Learn switch fixed -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -1092,6 +1092,7 @@ const inputArea=document.getElementById("inputArea");
 const backRow=document.getElementById("backRow");
 const backBtn=document.getElementById("backBtn");
 let answerHistory=[];
+let preSymptomScreen=null;
 
 function deepCopy(obj){return JSON.parse(JSON.stringify(obj));}
 function captureAnswerState(){
@@ -1117,8 +1118,21 @@ function updateBackButton(){
   backBtn.textContent=language==="Pidgin"?"← Go back / Change answer":"← Back / Change answer";
 }
 function restorePreviousAnswer(){
+  // If the user is at the beginning of the symptom route, a Back action should
+  // explicitly rebuild the Symptom-vs-Learn chooser. This avoids stale state.
+  if(["duration","onset_pattern","patient"].includes(step) && data.main){
+    // Remove snapshots until the old intent snapshot is no longer relied upon.
+    while(answerHistory.length && answerHistory[answerHistory.length-1].step!=="main"){
+      answerHistory.pop();
+    }
+    askIntent();
+    updateBackButton();
+    return;
+  }
+
   const snap=answerHistory.pop();if(!snap)return;
   data=deepCopy(snap.data);step=snap.step;targetedQueue=deepCopy(snap.targetedQueue);
+
   chat.innerHTML=snap.chatHTML;promptEl.textContent=snap.promptText;
   input.value=snap.inputValue;input.placeholder=snap.inputPlaceholder;
   inputArea.classList.toggle("hidden",snap.inputAreaHidden);
@@ -1231,17 +1245,55 @@ function setQuestion(q,ph=""){
 function wireChoiceButtons(){
   chat.querySelectorAll("[data-v]").forEach(b=>{
     b.onclick=()=>{
+      const sourceStep=b.dataset.choiceStep || step;
+      const value=b.dataset.v;
+
       chat.querySelectorAll("[data-v]").forEach(x=>x.classList.remove("selected"));
       b.classList.add("selected");
-      choose(b.dataset.v);
+
+      // The Symptom-vs-Learn chooser can remain visible after symptom flow begins.
+      // Honour what THAT button means, rather than the flow's newer global step.
+      if(sourceStep==="intent"){
+        hdgTrack("ask_hdg_intent_selected",{
+          intent:value,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
+        });
+
+        if(value==="learn"){
+          switchToLearnMode();
+          return;
+        }
+
+        if(value==="symptom"){
+          data.intent="symptom";
+          data.duration="";
+          data.onsetPattern="";
+          data.severity="";
+          data.other="";
+          data.targeted={};
+          data.uncertainSafety=false;
+          targetedQueue=[];
+          if(queryExplicitlyAdultOnly(data.main)) data.patient="adult";
+          beginSymptomFlow();
+          return;
+        }
+      }
+
+      choose(value);
     };
   });
 }
 
 function askChoices(q,opts){
   hideStarterSuggestions();
+
+  // Choice screens must fully replace any previous text-entry question.
+  promptEl.textContent="";
+  input.value="";
+  input.placeholder="";
   inputArea.classList.add("hidden");
-  showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}">${esc(o.t)}</button>`).join("")}</div>`);
+
+  const choiceStep=step;
+  showCard(`<strong>${esc(q)}</strong><div class="choices">${opts.map(o=>`<button type="button" class="choice" data-v="${esc(o.v)}" data-choice-step="${esc(choiceStep)}">${esc(o.t)}</button>`).join("")}</div>`);
   wireChoiceButtons();
   updateBackButton();
 }
@@ -1319,7 +1371,7 @@ function renderStarterSuggestions(){
 }
 
 function reset(){
-  step="main";data=freshData();targetedQueue=[];answerHistory=[];chat.innerHTML="";
+  step="main";data=freshData();targetedQueue=[];answerHistory=[];preSymptomScreen=null;chat.innerHTML="";
   setQuestion(C().qMain,C().phMain);
   renderStarterSuggestions();
 }
@@ -1895,8 +1947,43 @@ function articleOverview(a,topic){
  ? `${name} na health topic wey HDG cover. The main HDG guide fit help you understand wetin the topic mean, common symptoms or features, possible causes, and when medical assessment fit matter.`
  : `${name} is a health topic covered by HDG. The main HDG guide can help you understand what it means, common symptoms or features, possible causes, and when medical assessment may matter.`;
 }
+
+function switchToLearnMode(){
+  // Hard route switch: keep only the original topic/main concern.
+  const originalMain=data.main;
+  const originalTopic=data.topic;
+  const originalRoute=data.route;
+
+  data=freshData();
+  data.main=originalMain;
+  data.topic=originalTopic || cleanLearnTopic(originalMain);
+  data.route=originalRoute || detectRoute(originalMain).id;
+  data.intent="learn";
+
+  targetedQueue=[];
+  answerHistory=[];
+  preSymptomScreen=null;
+
+  // Completely remove BOTH the old intent card and symptom-entry UI.
+  chat.innerHTML="";
+  promptEl.textContent="";
+  input.value="";
+  input.placeholder="";
+  inputArea.classList.add("hidden");
+  hideStarterSuggestions();
+
+  step="learn_done";
+  updateBackButton();
+  learnMode();
+}
+
 function learnMode(){
-  step="learn_done";inputArea.classList.add("hidden");updateBackButton();
+  step="learn_done";
+  promptEl.textContent="";
+  input.value="";
+  input.placeholder="";
+  inputArea.classList.add("hidden");
+  updateBackButton();
   const topic=data.topic||data.main,matches=findLearnArticles(expandQuerySynonyms(topic),4),main=matches[0];
 
   if(!main){
@@ -1976,14 +2063,42 @@ function learnMode(){
   wireTrackedArticleLinks(chat);
 }
 function askIntent(){
- step="intent";
- const q=language==="Pidgin"
-   ? `You dey experience this yourself, or you just wan understand/learn more about am?`
-   : `Are you experiencing this yourself, or would you just like to understand or learn more about it?`;
- askChoices(q,[
-   {t:language==="Pidgin"?"I dey experience am":"I'm experiencing this",v:"symptom"},
-   {t:language==="Pidgin"?"I just wan understand am":"I just want to learn more",v:"learn"}
- ]);
+  // Switching back to intent must visually leave the symptom screen completely.
+  promptEl.textContent="";
+  input.value="";
+  input.placeholder="";
+  inputArea.classList.add("hidden");
+
+  // Keep a clean copy of the screen before entering the symptom route.
+  preSymptomScreen={
+    data:deepCopy(data),
+    chatHTML:chat.innerHTML,
+    promptText:promptEl.textContent,
+    inputValue:input.value,
+    inputPlaceholder:input.placeholder,
+    inputAreaHidden:inputArea.classList.contains("hidden")
+  };
+
+  // Rebuild the chooser fresh so it never inherits a stale symptom-flow screen.
+  data.intent="ambiguous";
+  data.duration="";
+  data.onsetPattern="";
+  data.patient=queryExplicitlyAdultOnly(data.main)?"adult":"";
+  data.severity="";
+  data.other="";
+  data.targeted={};
+  data.uncertainSafety=false;
+  targetedQueue=[];
+
+  step="intent";
+  const q=language==="Pidgin"
+    ? `You dey experience this yourself, or you just wan understand/learn more about am?`
+    : `Are you experiencing this yourself, or would you just like to understand or learn more about it?`;
+
+  askChoices(q,[
+    {t:language==="Pidgin"?"I dey experience am":"I'm experiencing this",v:"symptom"},
+    {t:language==="Pidgin"?"I just wan understand am":"I just want to learn more",v:"learn"}
+  ]);
 }
 
 function continueAfterDurationSelective(){
@@ -2104,19 +2219,6 @@ function choose(v){
     return;
   }
 
-  if(step==="intent"){
-    data.intent=v;
-    hdgTrack("ask_hdg_intent_selected",{
-      intent:v,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
-    });
-
-    if(queryExplicitlyAdultOnly(data.main)){
-      data.patient="adult";
-    }
-
-    if(v==="learn"){learnMode();return;}
-    beginSymptomFlow();return;
-  }
   if(step==="patient"){
     data.patient=v;
     startTargeted();
