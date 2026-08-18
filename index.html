@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v58: Pidgin English label + desktop suggestion-card alignment -->
+<!-- v63: language helper removed; English/Pidgin English selector retained -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -195,16 +195,54 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
   }
 }
 
+
+.field-guide{
+  color:#5f6d66;
+  font-size:12px;
+  font-weight:700;
+  line-height:1.3;
+}
+.language-guide{
+  margin:14px 18px 5px;
+}
+.input-guide{
+  margin:0 0 7px;
+}
+@media(max-width:600px){
+  .language-guide{margin:14px 16px 5px}
+  .input-guide{font-size:12px;margin-bottom:7px}
+}
+
+
+/* ===== v61 no top green banner ===== */
+.checker{padding-top:12px}
+@media(max-width:600px){
+  .checker{padding-top:8px}
+  .language-guide{margin-top:8px}
+}
+
+
+/* ===== v62 align language guide with content ===== */
+.language-guide{
+  margin-left:0 !important;
+  margin-right:0 !important;
+  padding-left:18px;
+  padding-right:18px;
+}
+@media(max-width:600px){
+  .language-guide{
+    margin-left:0 !important;
+    margin-right:0 !important;
+    padding-left:16px;
+    padding-right:16px;
+  }
+}
+
 </style>
 </head>
 <body>
 <div class="wrap"><div class="checker">
-  <div class="header">
-    <h1>Health Decoded Guide</h1>
-    <div class="sub">Ask HDG · Health education, not diagnosis</div>
-  </div>
-
-  <div class="language">
+<div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
     <button id="pidginBtn" class="lang-btn" type="button">Pidgin English</button>
   </div>
@@ -269,7 +307,7 @@ const HDG_CLINICAL_RULE_REGISTRY=Object.freeze({
 const COPY={
   English:{
     qMain:"What would you like help understanding?",
-    phMain:"e.g. chest pain, fibroids, why am I always tired?",
+    phMain:"Type your question or health concern",
     qDuration:"When did this start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qOnsetPattern:"Did it start suddenly or gradually?",
@@ -297,7 +335,7 @@ const COPY={
   },
   Pidgin:{
     qMain:"Wetin you wan make we help you understand?",
-    phMain:"e.g. chest pain, fibroids, why am I always tired?",
+    phMain:"Type your question or health concern",
     qDuration:"Na when e start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qOnsetPattern:"E start suddenly or gradually?",
@@ -671,7 +709,8 @@ function canonicalMedicalTopic(text){
   if(/\b(enlarged prostate|prostate enlargement|big prostate|bph|benign prostatic hyperplasia)\b/.test(n)){
     return "prostate enlargement";
   }
-  if(/\b(erection|erection problem|erection problems|erection difficulty|impotence|erectile dysfunction)\b/.test(n)){
+  if(/\b(erection|erection problem|erection problems|erection difficulty|erection difficulties|weak erection|poor erection|impotence|erectile dysfunction)\b/.test(n)
+     || /\b(can(?:not|'t|t) get an erection|can(?:not|'t|t) keep an erection|difficulty getting an erection|difficulty keeping an erection)\b/.test(n)){
     return "erectile dysfunction";
   }
   if(/\b(pcos|polycystic ovary syndrome)\b/.test(n)){
@@ -1020,7 +1059,13 @@ function fuzzyExpandQuery(text){
 const QUERY_SYNONYMS=[
   {patterns:[/\benlarged prostate\b/gi,/\bbig prostate\b/gi,/\bbenign prostatic hyperplasia\b/gi,/\bbph\b/gi],replace:"prostate enlargement bph"},
 
-  {patterns:[/\berection\b/gi,/\berection problem\b/gi,/\berection problems\b/gi,/\berection difficulty\b/gi,/\bdifficulty getting an erection\b/gi,/\bdifficulty keeping an erection\b/gi,/\bimpotence\b/gi],replace:"erectile dysfunction"},
+  {patterns:[
+    /\berection\b/gi,/\berection problem\b/gi,/\berection problems\b/gi,
+    /\berection difficulty\b/gi,/\berection difficulties\b/gi,
+    /\bdifficulty getting an erection\b/gi,/\bdifficulty keeping an erection\b/gi,
+    /\bcan(?:not|'t|t) get an erection\b/gi,/\bcan(?:not|'t|t) keep an erection\b/gi,
+    /\bweak erection\b/gi,/\bpoor erection\b/gi,/\bimpotence\b/gi
+  ],replace:"erectile dysfunction"},
   {patterns:[/\bi can(?:not|'t|t) see\b/gi,/\bcannot see\b/gi,/\bunable to see\b/gi],replace:"vision loss blindness"},
   {patterns:[/\bi can(?:not|'t|t) hear\b/gi,/\bcannot hear\b/gi,/\bunable to hear\b/gi],replace:"hearing loss deafness"},
   {patterns:[/\bhigh bp\b/gi,/\bhypertension\b/gi],replace:"high blood pressure"},
@@ -1129,9 +1174,16 @@ function scoreArticle(a,q){
   }
 
   if(query.includes("erectile dysfunction") || query.includes("erection")){
-    if(title.includes("erectile dysfunction")) score+=360;
-    if(cat.includes("men's health")) score+=120;
-    if(cat.includes("women's health")) score-=220;
+    if(title.includes("erectile dysfunction")) score+=900;
+    if(keys.includes("erectile") && keys.includes("dysfunction")) score+=320;
+    if(cat.includes("men's health")) score+=80;
+
+    // Generic erection problems must not drift toward prostate disease merely
+    // because the articles share a Men's Health category.
+    if(title.includes("prostate cancer")) score-=1200;
+    if(title.includes("prostate enlargement")) score-=850;
+    if(/\bbph\b/.test(title+" "+keys)) score-=700;
+    if(cat.includes("women's health")) score-=300;
   }
 
   if(query.includes("prostate enlargement") || query.includes("enlarged prostate") || /\bbph\b/.test(query)){
@@ -1190,13 +1242,40 @@ function questionIsAgeAppropriate(q){
 function findArticles(q,limit=3){
   let pref=ARTICLES.filter(a=>norm(a.language)===norm(language));
   if(!pref.length) pref=ARTICLES;
+
   const ranked=pref
     .filter(a=>ageAppropriateArticle(a,q))
     .map(a=>({...a,score:scoreArticle(a,q)}))
     .filter(a=>a.score>0)
     .sort((a,b)=>b.score-a.score);
+
+  const canonical=canonicalMedicalTopic(q);
+  let ordered=ranked;
+
+  if(canonical){
+    // Exact disease/entity matches always lead ordinary symptom retrieval too.
+    const strongSame=ranked.filter(a=>isStrongEntityMatch(a,q));
+
+    if(strongSame.length){
+      const strongUrls=new Set(strongSame.map(a=>a.url));
+      ordered=[...strongSame,...ranked.filter(a=>!strongUrls.has(a.url))];
+    }else{
+      // If the selected language genuinely lacks the entity, prefer the correct
+      // article in the other language over an unrelated article.
+      const cross=ARTICLES
+        .filter(a=>ageAppropriateArticle(a,q) && isStrongEntityMatch(a,q))
+        .map(a=>({...a,score:scoreArticle(a,q)}))
+        .sort((a,b)=>b.score-a.score);
+
+      if(cross.length){
+        const crossUrls=new Set(cross.map(a=>a.url));
+        ordered=[...cross,...ranked.filter(a=>!crossUrls.has(a.url))];
+      }
+    }
+  }
+
   const seen=new Set();
-  return ranked.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
+  return ordered.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
 }
 
 const chat=document.getElementById("chat");
@@ -1610,8 +1689,8 @@ function renderStarterSuggestions(){
 function reset(){
   step="main";data=freshData();targetedQueue=[];answerHistory=[];preSymptomScreen=null;chat.innerHTML="";
   setQuestion(C().qMain,C().phMain);
-  renderStarterSuggestions();  renderHdgFooter();
-}
+  renderStarterSuggestions();  renderHdgFooter();}
+
 
 
 function renderHdgFooter(){
@@ -1628,6 +1707,8 @@ function renderHdgFooter(){
       <div class="research-note"><strong>Help us improve Ask HDG:</strong> This conversation may be used for product improvement. Please do not type your name, phone number, email address, or other identifying information. · <a href="https://www.healthdecodedguide.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a></div>`;
   }
 }
+
+
 
 function setLanguage(lang){
   language=lang;
@@ -2604,7 +2685,7 @@ function recommendationReason(){
 }
 
 function articleBlock(limit=3){
-  if(!ARTICLES.length) return `<p class="muted">HDG article index is not ready yet.</p>`;
+  if(!ARTICLES.length) return `<p>${esc(C().noMatch)}</p>`;
 
   const mainQuery=data.main || "";
   const otherQuery=data.other || "";
