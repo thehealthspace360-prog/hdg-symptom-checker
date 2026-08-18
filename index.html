@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v52: intent buttons remember their own screen; Symptom→Learn switch fixed -->
+<!-- v58: Pidgin English label + desktop suggestion-card alignment -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -75,6 +75,126 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:bold;margin-bottom:8px}
 .badge.red{background:#fee4e2;color:#912018}.badge.amber{background:#fff0c2;color:#7a4a00}.badge.green{background:#e4f2ec;color:#155544}
 @media(max-width:600px){.wrap{margin:0;padding:0}.checker{border-radius:0;min-height:100vh}.header{border-radius:0}}
+
+.hdg-footer{
+  margin:14px 0 4px;
+  padding-top:12px;
+  border-top:1px solid #e6ece9;
+  color:#6b756f;
+  font-size:12px;
+  line-height:1.45;
+}
+.hdg-footer strong{color:#46534d}
+.hdg-footer .research-note{margin-top:5px;font-size:11.5px;color:#7a837e}
+.hdg-footer a{color:var(--green);text-decoration:none}
+.hdg-footer a:hover{text-decoration:underline}
+
+
+/* ===== v57 mobile-first UX polish ===== */
+.starter-label{
+  margin:12px 0 7px;
+  font-size:12px;
+  font-weight:700;
+  color:#66736d;
+}
+#starterSuggestions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:9px;
+  margin:0 0 14px;
+}
+#starterSuggestions .suggestion-btn{
+  width:100%;
+  min-height:46px;
+  border:1px solid var(--green);
+  border-radius:12px;
+  background:#fff;
+  color:var(--green);
+  padding:10px 12px;
+  text-align:left;
+  font-weight:600;
+  line-height:1.3;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+#starterSuggestions .suggestion-btn::after{
+  content:"→";
+  flex:0 0 auto;
+  font-size:17px;
+}
+#starterSuggestions .suggestion-btn:hover,
+#starterSuggestions .suggestion-btn:focus-visible{
+  background:#edf6f2;
+  outline:none;
+}
+#askBtn{min-height:48px}
+#symptom{min-height:92px}
+@media(max-width:600px){
+  body{background:#fff}
+  .wrap{margin:0;padding:0;width:100%;max-width:none}
+  .checker{
+    width:100%;
+    max-width:none;
+    min-height:100dvh;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+    padding-bottom:18px;
+  }
+  .header{border-radius:0;padding:18px 18px 16px}
+  .header h1{font-size:23px;line-height:1.15}
+  .header .sub{font-size:12px;margin-top:4px}
+  .language{padding-left:16px;padding-right:16px;margin-top:14px}
+  #chat,#inputArea,#backRow,.hdg-footer{margin-left:16px;margin-right:16px}
+  #inputArea{margin-top:10px}
+  .question{font-size:17px;line-height:1.3;margin-bottom:8px}
+  #symptom{font-size:16px;min-height:100px;padding:13px}
+  #askBtn{width:100%;min-height:50px;font-size:16px}
+  #starterSuggestions{grid-template-columns:1fr}
+  #starterSuggestions .suggestion-btn{
+    min-height:50px;
+    font-size:14px;
+    padding:11px 13px;
+  }
+  .hdg-footer{font-size:11.5px;line-height:1.4;margin-top:16px}
+  .hdg-footer .research-note{font-size:11px}
+  .choices{display:grid;grid-template-columns:1fr;gap:8px}
+  .choice{width:100%;min-height:48px;text-align:left}
+}
+
+
+#indexStatus{display:none!important}
+
+/* ===== v58 desktop starter-suggestion alignment ===== */
+@media(min-width:601px){
+  #starterSuggestions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    width:100%;
+    margin:12px 0 14px;
+    align-items:stretch;
+  }
+  #starterSuggestions .starter-label{
+    grid-column:1 / -1;
+    margin:0 0 -2px;
+  }
+  #starterSuggestions .suggestion-btn{
+    min-width:0;
+    width:100%;
+    height:100%;
+    min-height:52px;
+    margin:0;
+    border-radius:12px;
+    padding:10px 13px;
+    justify-content:space-between;
+    text-align:left;
+    white-space:normal;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -86,10 +206,10 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 
   <div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
-    <button id="pidginBtn" class="lang-btn" type="button">Pidgin</button>
+    <button id="pidginBtn" class="lang-btn" type="button">Pidgin English</button>
   </div>
 
-  <div id="indexStatus" class="status">Loading HDG article index…</div>
+  <div id="indexStatus" class="status hidden" aria-hidden="true"></div>
   <div id="chat"></div>
 
   <div id="backRow" class="back-row hidden">
@@ -101,11 +221,7 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
     <button id="askBtn" class="send" type="button">Ask HDG</button>
   </div>
 
-  <div class="small">
-    <strong>English:</strong> HDG provides general health education and navigation only. It does not diagnose, rule out medical conditions, or replace assessment by a qualified healthcare professional. If symptoms may be an emergency, seek urgent medical help.
-    <br><br>
-    <strong>Pidgin:</strong> HDG na for general health education and navigation only. E no dey diagnose sickness, rule out medical condition, or replace assessment by qualified healthcare professional. If the symptoms fit be emergency, abeg seek urgent medical help.
-  </div>
+  <div id="hdgFooter" class="hdg-footer"></div>
 </div></div>
 
 <script>
@@ -152,8 +268,8 @@ const HDG_CLINICAL_RULE_REGISTRY=Object.freeze({
 
 const COPY={
   English:{
-    qMain:"What would you like to talk about or understand today?",
-    phMain:"e.g. chest pain, cough and fever",
+    qMain:"What would you like help understanding?",
+    phMain:"e.g. chest pain, fibroids, why am I always tired?",
     qDuration:"When did this start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qOnsetPattern:"Did it start suddenly or gradually?",
@@ -180,8 +296,8 @@ const COPY={
     warning:"Some symptoms you entered can be serious. Ask HDG will ask a few short questions to understand the safety picture better. Do not delay emergency care if the person is very unwell or worsening quickly."
   },
   Pidgin:{
-    qMain:"Wetin you wan talk about or understand today?",
-    phMain:"e.g. chest pain, cough and fever",
+    qMain:"Wetin you wan make we help you understand?",
+    phMain:"e.g. chest pain, fibroids, why am I always tired?",
     qDuration:"Na when e start?",
     phDuration:"e.g. today, yesterday, 3 days ago, 2 weeks",
     qOnsetPattern:"E start suddenly or gradually?",
@@ -642,7 +758,7 @@ async function loadArticles(){
       const parsed=parseIndex(await r.text());
       if(parsed.length){
         ARTICLES=parsed;
-        status.textContent="HDG article index ready";
+        status.textContent="";
         console.log("HDG index loaded:",ARTICLES.length,"articles from",path);
         return;
       }
@@ -1151,6 +1267,91 @@ backBtn.onclick=restorePreviousAnswer;
 
 
 
+
+/* ===== Ask HDG conversation logging (v55) =====
+   Public frontend uses ONLY a Supabase publishable key.
+   Never place a secret/service_role key here.
+*/
+const HDG_TRANSCRIPT_CONFIG={
+  SUPABASE_URL:"https://vfeypisqomxqauggsgcf.supabase.co",
+  SUPABASE_PUBLISHABLE_KEY:"sb_publishable_KcK_fCc42ObD5gJxeIkTpA_MULdl1h1"
+};
+
+let transcriptSessionId=null;
+
+function transcriptConfigured(){
+  return /^https:\/\/.+\.supabase\.co$/i.test(HDG_TRANSCRIPT_CONFIG.SUPABASE_URL)
+    && /^sb_publishable_/i.test(HDG_TRANSCRIPT_CONFIG.SUPABASE_PUBLISHABLE_KEY);
+}
+
+async function hdgRpc(functionName,payload={}){
+  if(!transcriptConfigured()) return {ok:false,skipped:true};
+  try{
+    const r=await fetch(`${HDG_TRANSCRIPT_CONFIG.SUPABASE_URL}/rest/v1/rpc/${functionName}`,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "apikey":HDG_TRANSCRIPT_CONFIG.SUPABASE_PUBLISHABLE_KEY,
+        "Authorization":`Bearer ${HDG_TRANSCRIPT_CONFIG.SUPABASE_PUBLISHABLE_KEY}`
+      },
+      body:JSON.stringify(payload)
+    });
+    const text=await r.text();
+    if(!r.ok) return {ok:false,error:text||`HTTP ${r.status}`};
+    let data=text;
+    try{data=JSON.parse(text)}catch(e){}
+    return {ok:true,data};
+  }catch(error){
+    return {ok:false,error:String(error)};
+  }
+}
+
+async function ensureTranscriptSession(){
+  if(transcriptSessionId) return transcriptSessionId;
+  const r=await hdgRpc("hdg_start_chat_session",{
+    p_language:language,
+    p_assistant_version:"v55"
+  });
+  if(r.ok){
+    transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
+    return transcriptSessionId;
+  }
+  return null;
+}
+
+function plainTextFromHtml(html){
+  const d=document.createElement("div");
+  d.innerHTML=String(html||"");
+  return (d.textContent||"").replace(/\s+/g," ").trim().slice(0,2000);
+}
+
+async function logTranscript(sender,message,kind="message"){
+  const clean=String(message||"").replace(/\s+/g," ").trim().slice(0,2000);
+  if(!clean) return;
+  const sid=await ensureTranscriptSession();
+  if(!sid) return;
+  await hdgRpc("hdg_append_chat_message",{
+    p_session:sid,
+    p_sender:sender,
+    p_message:clean,
+    p_kind:kind
+  });
+}
+
+async function updateTranscriptSession(fields={}){
+  if(!transcriptSessionId) return;
+  const allowed=["language","intent","topic_family","patient_group","outcome","helpful"];
+  const safe={};
+  for(const k of allowed){
+    if(fields[k]!==undefined) safe[k]=String(fields[k]).slice(0,80);
+  }
+  await hdgRpc("hdg_update_chat_session",{
+    p_session:transcriptSessionId,
+    p_fields:safe
+  });
+}
+
+
 /* ===== Ask HDG privacy-conscious analytics (v44) =====
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
@@ -1235,18 +1436,33 @@ function C(){return COPY[language]}
 function showCard(html,type="normal"){
   const cls=type==="emergency"?" urgent":type==="urgent"?" caution":"";
   chat.innerHTML=`<div class="card${cls}">${html}</div>`;
+  logTranscript("assistant",plainTextFromHtml(html),type==="normal"?"assistant_message":type);  smoothFocusActive();
 }
+
+
+function smoothFocusActive(){
+  if(window.innerWidth>600) return;
+  requestAnimationFrame(()=>{
+    const target=!inputArea.classList.contains("hidden")
+      ? inputArea
+      : (chat.querySelector(".card") || chat);
+    target?.scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
+}
+
 function setQuestion(q,ph=""){
   hideStarterSuggestions();
   promptEl.textContent=q;input.placeholder=ph;input.value="";
-  inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);
+  inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);  smoothFocusActive();
 }
+
 
 function wireChoiceButtons(){
   chat.querySelectorAll("[data-v]").forEach(b=>{
     b.onclick=()=>{
       const sourceStep=b.dataset.choiceStep || step;
       const value=b.dataset.v;
+      logTranscript("user",b.textContent||value,"choice_answer");
 
       chat.querySelectorAll("[data-v]").forEach(x=>x.classList.remove("selected"));
       b.classList.add("selected");
@@ -1255,6 +1471,9 @@ function wireChoiceButtons(){
       // Honour what THAT button means, rather than the flow's newer global step.
       if(sourceStep==="intent"){
         hdgTrack("ask_hdg_intent_selected",{
+          intent:value,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
+        });
+        updateTranscriptSession({
           intent:value,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
         });
 
@@ -1343,41 +1562,77 @@ function showStarterSuggestionsIfAllowed(){
 
 function renderStarterSuggestions(){
   document.getElementById("starterSuggestions")?.remove();
+  if(step!=="main") return;
+
   const wrap=document.createElement("div");
-  wrap.id="starterSuggestions";wrap.className="suggestion-wrap";
-  starterSuggestions().forEach(text=>{
+  wrap.id="starterSuggestions";
+  wrap.className="starter-suggestions";
+
+  const label=document.createElement("div");
+  label.className="starter-label";
+  label.textContent=language==="Pidgin" ? "Or try:" : "Or try:";
+
+  const suggestions=language==="Pidgin"
+    ? [
+        "Why I dey feel overwhelmed all the time?",
+        "Why erection fit become difficult?"
+      ]
+    : [
+        "Why do I feel overwhelmed all the time?",
+        "Why can erections become difficult?"
+      ];
+
+  suggestions.forEach(text=>{
     const b=document.createElement("button");
-    b.type="button";b.className="suggestion-chip";b.textContent=text;
+    b.type="button";
+    b.className="suggestion-btn";
+    const span=document.createElement("span");
+    span.textContent=text;
+    b.appendChild(span);
     b.onclick=()=>{
-      hdgTrack("ask_hdg_starter_selected",{source:"starter_suggestion"});
-      // A suggestion should take the user back to the main search screen,
-      // prefill the selected text, and wait for the user to press Continue.
-      step="main";
-      data=freshData();
-      targetedQueue=[];
-      answerHistory=[];
-      chat.innerHTML="";
-      inputArea.classList.remove("hidden");
-      promptEl.textContent=C().qMain;
-      input.placeholder=C().phMain;
       input.value=text;
-      updateBackButton();
       input.focus();
       input.setSelectionRange(input.value.length,input.value.length);
+      smoothFocusActive();
     };
     wrap.appendChild(b);
   });
-  inputArea.parentNode.insertBefore(wrap,inputArea);
+
+  const holder=document.createElement("div");
+  holder.id="starterSuggestions";
+  holder.appendChild(label);
+  while(wrap.firstChild) holder.appendChild(wrap.firstChild);
+
+  // Suggestions now come AFTER the main input/button.
+  inputArea.insertAdjacentElement("afterend",holder);
 }
 
 function reset(){
   step="main";data=freshData();targetedQueue=[];answerHistory=[];preSymptomScreen=null;chat.innerHTML="";
   setQuestion(C().qMain,C().phMain);
-  renderStarterSuggestions();
+  renderStarterSuggestions();  renderHdgFooter();
 }
+
+
+function renderHdgFooter(){
+  const el=document.getElementById("hdgFooter");
+  if(!el) return;
+
+  if(language==="Pidgin"){
+    el.innerHTML=`
+      <div><strong>Ask HDG na for health education, e no dey diagnose sickness.</strong> If symptoms fit be emergency, abeg seek urgent medical help.</div>
+      <div class="research-note"><strong>Help us improve Ask HDG:</strong> We fit use this conversation for product improvement. Abeg no type your name, phone number, email address, or other information wey fit identify you. · <a href="https://www.healthdecodedguide.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a></div>`;
+  }else{
+    el.innerHTML=`
+      <div><strong>Ask HDG provides health education, not diagnosis.</strong> If symptoms may be an emergency, seek urgent medical help.</div>
+      <div class="research-note"><strong>Help us improve Ask HDG:</strong> This conversation may be used for product improvement. Please do not type your name, phone number, email address, or other identifying information. · <a href="https://www.healthdecodedguide.com/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a></div>`;
+  }
+}
+
 function setLanguage(lang){
   language=lang;
   hdgTrack("ask_hdg_language_selected",{source:"language_toggle"});
+  renderHdgFooter();
   document.getElementById("englishBtn").classList.toggle("active",lang==="English");
   document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
   reset();
@@ -1550,6 +1805,7 @@ function lumpOrBirthmarkUrgentDetected(text){
 }
 
 function hardStopLumpOrBirthmark(){
+  updateTranscriptSession({outcome:"medical_assessment"});
   hdgTrack("ask_hdg_safety_route",{disposition:"medical_assessment",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -1599,6 +1855,7 @@ function severeMentalHealthDetected(text){
 }
 
 function hardStopSevereMentalHealth(){
+  updateTranscriptSession({outcome:"urgent_mental_health"});
   hdgTrack("ask_hdg_safety_route",{disposition:"urgent_mental_health",topic_family:"mental_health",patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -1637,6 +1894,7 @@ function mentalHealthCrisisDetected(text){
 }
 
 function hardStopMentalHealthCrisis(){
+  updateTranscriptSession({outcome:"mental_health_crisis"});
   hdgTrack("ask_hdg_safety_route",{disposition:"mental_health_crisis",topic_family:"mental_health",patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -1668,6 +1926,7 @@ function traumaDetected(text){
 }
 
 function hardStopTrauma(){
+  updateTranscriptSession({outcome:"trauma_urgent"});
   hdgTrack("ask_hdg_safety_route",{disposition:"trauma_urgent",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -1694,6 +1953,7 @@ function hardStopTrauma(){
 }
 
 function hardStopUrgent(title,body){
+  updateTranscriptSession({outcome:"urgent"});
   hdgTrack("ask_hdg_safety_route",{disposition:"urgent",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -1708,6 +1968,7 @@ function hardStopUrgent(title,body){
 }
 
 function hardStopEmergency(){
+  updateTranscriptSession({outcome:"emergency"});
   hdgTrack("ask_hdg_safety_route",{disposition:"emergency",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()});
   inputArea.classList.add("hidden");
   step="done";
@@ -2157,6 +2418,7 @@ function beginSymptomFlow(){
 function submitText(){
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
+  logTranscript("user",v,"text_answer");
 
   // Save the current screen before EVERY submission, including the first one.
   // This lets users return from "When did this start?" to the original question.
@@ -2173,6 +2435,12 @@ function submitText(){
       topic_family:analyticsTopicFamily(),
       patient_group:analyticsPatientGroup(),
       source:"typed_or_prefilled"
+    });
+    updateTranscriptSession({
+      language,
+      intent:data.intent||"unknown",
+      topic_family:analyticsTopicFamily(),
+      patient_group:analyticsPatientGroup()
     });
 
     if(data.intent==="learn"){learnMode();return;}
@@ -2268,6 +2536,7 @@ function choose(v){
       intent:data.intent||"symptom",topic_family:analyticsTopicFamily(),
       patient_group:analyticsPatientGroup(),helpful:v
     });
+    updateTranscriptSession({helpful:v});
     if(v==="yes"){
       inputArea.classList.add("hidden");
       step="done";
@@ -2442,5 +2711,7 @@ input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventD
 reset();
 loadArticles();
 </script>
+
+
 </body>
 </html>
