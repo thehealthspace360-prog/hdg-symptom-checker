@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v64 Performance: cached article index + non-blocking transcript queue + privacy-safe timing metrics -->
+<!-- v65.3 patient-group routing + v65.1 routing fix + v65 UX: state-preserving language switch + optional language detection + no-other-symptoms escape; v64 performance retained -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -238,6 +238,17 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
   }
 }
 
+
+/* ===== v65 language continuity + optional language suggestion ===== */
+.language-suggestion{
+  margin:8px 0 12px;padding:10px 12px;border:1px solid #d9e3de;border-radius:10px;
+  background:#f7faf8;font-size:13px;line-height:1.35;
+}
+.language-suggestion .actions{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap}
+.language-suggestion button{min-height:38px}
+.no-other-wrap{margin-top:8px}
+.no-other-wrap .secondary{width:100%}
+
 </style>
 </head>
 <body>
@@ -461,12 +472,23 @@ function norm(s){return String(s||"").toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function includesAny(text,arr){const n=norm(text);return arr.some(x=>n.includes(norm(x)))}
 
+function phraseBoundaryMatch(text,term){
+  const n=" "+norm(text)+" ";
+  const t=" "+norm(term)+" ";
+  return n.includes(t);
+}
+
 function detectFamily(text){
   const n=norm(normalizeEverydaySymptoms(text));
   let best={id:"general",score:0};
   FAMILY_RULES.forEach(f=>{
     let score=0;
-    f.terms.forEach(t=>{if(n.includes(norm(t))) score+=norm(t).split(" ").length;});
+    f.terms.forEach(t=>{
+      // v65.1: match complete words/phrases only.
+      // Prevents seizure keyword "fit" from matching inside words such as
+      // "difficult" (e.g. "why erection become difficult").
+      if(phraseBoundaryMatch(n,t)) score+=norm(t).split(" ").length;
+    });
     if(score>best.score) best={id:f.id,score};
   });
   return best.id;
@@ -1232,9 +1254,29 @@ function scoreArticle(a,q){
 
 
 const ADULT_ONLY_TOPIC_MARKERS=[
-  "erectile dysfunction","erection disorder","erection difficulty","impotence",
+  // Men's / adult reproductive health
+  "erectile dysfunction","erection disorder","erection difficulty","erection difficulties",
+  "difficulty getting an erection","difficulty keeping an erection","weak erection",
+  "poor erection","erection problem","erection problems","impotence",
   "enlarged prostate","benign prostatic hyperplasia","bph","prostate enlargement",
-  "menopause","perimenopause","postmenopausal","post-menopause"
+  "prostate cancer","peyronie","peyronie's disease","male infertility",
+
+  // Women's / adult reproductive & life-stage topics where asking
+  // "adult or child?" adds no useful routing value.
+  "fibroid","fibroids","uterine fibroid","uterine fibroids",
+  "endometriosis","adenomyosis",
+  "menopause","perimenopause","postmenopausal","post-menopause",
+  "pelvic organ prolapse","uterine prolapse",
+  "ectopic pregnancy","pregnancy","pregnant"
+];
+
+const EXPLICIT_CHILD_MARKERS=[
+  "child","children","pikin","baby","babies","infant","infants","toddler","toddlers"
+];
+
+const EXPLICIT_ADULT_MARKERS=[
+  "adult","grown man","grown woman","my husband","my wife",
+  "pregnant","pregnancy","menopause","perimenopause","postmenopausal"
 ];
 
 function articleText(a){
@@ -1248,11 +1290,26 @@ function isChildSpecificArticle(a){
   return /\b(child|children|pikin|baby|babies|infant|infants|toddler|toddlers|paediatric|pediatric)\b/.test(articleText(a));
 }
 function queryExplicitlyAdultOnly(q){
-  const n=norm(normalizeEverydaySymptoms(q));
-  return ADULT_ONLY_TOPIC_MARKERS.some(x=>n.includes(norm(x)));
+  const n=norm(expandQuerySynonyms(q));
+  if(ADULT_ONLY_TOPIC_MARKERS.some(x=>phraseBoundaryMatch(n,x))) return true;
+  if(EXPLICIT_ADULT_MARKERS.some(x=>phraseBoundaryMatch(n,x))) return true;
+
+  // Natural erection variants not always captured by a fixed phrase list.
+  const erectionContext=/\berection(s)?\b/.test(n) &&
+    /\b(difficult|difficulty|problem|problems|weak|poor|hard|keep|keeping|get|getting)\b/.test(n);
+  return erectionContext;
 }
 function queryExplicitlyChild(q){
-  return /\b(child|children|pikin|baby|babies|infant|infants|toddler|toddlers|teen|teenager)\b/.test(norm(q));
+  const n=norm(q);
+  return EXPLICIT_CHILD_MARKERS.some(x=>phraseBoundaryMatch(n,x));
+}
+
+function inferPatientGroupFromQuery(q){
+  // Explicit child wording wins. Otherwise use only high-confidence adult/life-stage
+  // signals. Generic symptoms remain unresolved and still ask Adult or Child.
+  if(queryExplicitlyChild(q)) return "child";
+  if(queryExplicitlyAdultOnly(q)) return "adult";
+  return "";
 }
 function ageAppropriateArticle(a,q){
   if(data.patient==="child" && isAdultOnlyArticle(a) && !queryExplicitlyAdultOnly(q)) return false;
@@ -1427,7 +1484,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v64"
+      p_assistant_version:"v65.3"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1492,7 +1549,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v64";
+const HDG_ANALYTICS_VERSION="v65.3";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -1608,6 +1665,7 @@ function smoothFocusActive(){
 
 function setQuestion(q,ph=""){
   hideStarterSuggestions();
+  document.getElementById("noOtherSymptomsWrap")?.remove();
   promptEl.textContent=q;input.placeholder=ph;input.value="";
   inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);
   reportInteractionTiming("question_render");
@@ -1663,6 +1721,7 @@ function wireChoiceButtons(){
 
 function askChoices(q,opts){
   hideStarterSuggestions();
+  document.getElementById("noOtherSymptomsWrap")?.remove();
 
   // Choice screens must fully replace any previous text-entry question.
   promptEl.textContent="";
@@ -1766,7 +1825,100 @@ function renderStarterSuggestions(){
   inputArea.insertAdjacentElement("afterend",holder);
 }
 
+
+function removeLanguageSuggestion(){
+  document.getElementById("languageSuggestion")?.remove();
+}
+
+function detectMessageLanguage(text){
+  const n=norm(text);
+  if(!n || n.split(/\s+/).length<3) return null;
+
+  // High-signal Pidgin English markers. Mixed/uncertain messages return null.
+  const pidgin=[
+    " wetin "," dey "," no dey "," fit "," pikin "," belle "," abeg "," wan ",
+    " don "," na "," e dey "," i dey "," my thing "," anytime e "," make i "
+  ];
+  const padded=` ${n} `;
+  const pScore=pidgin.reduce((a,x)=>a+(padded.includes(x)?1:0),0);
+  if(pScore>=2) return "Pidgin";
+
+  // Only suggest English when the sentence is clearly English; do not force a
+  // switch for short or mixed messages.
+  const english=[
+    " i am "," i have "," i do not "," i don't "," my child "," my chest ",
+    " what is "," why is "," how long "," since yesterday "," for two "," for three "
+  ];
+  const eScore=english.reduce((a,x)=>a+(padded.includes(x)?1:0),0);
+  if(eScore>=1 && pScore===0) return "English";
+  return null;
+}
+
+function offerLanguageSwitch(text){
+  const detected=detectMessageLanguage(text);
+  if(!detected || detected===language) return;
+  removeLanguageSuggestion();
+
+  const box=document.createElement("div");
+  box.id="languageSuggestion";
+  box.className="language-suggestion";
+  const targetLabel=detected==="Pidgin"?"Pidgin English":"English";
+  box.innerHTML=`<strong>${detected==="Pidgin"?"You dey write in Pidgin English.":"It looks like you're writing in English."}</strong><br>${detected==="Pidgin"?"Switch Ask HDG to Pidgin English?":"Switch Ask HDG to English?"}<div class="actions"><button type="button" class="secondary" id="acceptLanguageSwitch">${detected==="Pidgin"?"Switch to Pidgin English":"Switch to English"}</button><button type="button" class="secondary" id="keepLanguage">${language==="Pidgin"?"Keep Pidgin English":"Keep English"}</button></div>`;
+  chat.parentElement.insertBefore(box,chat);
+  document.getElementById("acceptLanguageSwitch").onclick=()=>{
+    removeLanguageSuggestion();
+    setLanguage(detected,{source:"detected_prompt"});
+  };
+  document.getElementById("keepLanguage").onclick=removeLanguageSuggestion;
+}
+
+function renderNoOtherSymptomsButton(){
+  document.getElementById("noOtherSymptomsWrap")?.remove();
+  if(step!=="other" || inputArea.classList.contains("hidden")) return;
+  const wrap=document.createElement("div");
+  wrap.id="noOtherSymptomsWrap";
+  wrap.className="no-other-wrap";
+  const b=document.createElement("button");
+  b.type="button";b.className="secondary";
+  b.textContent=language==="Pidgin"?"No other symptom":"No other symptoms";
+  b.onclick=()=>{
+    markInteractionStart();
+    logTranscript("user",b.textContent,"choice_answer");
+    captureAnswerState();
+    data.other="";
+    review();
+  };
+  wrap.appendChild(b);inputArea.appendChild(wrap);
+}
+
+function rerenderCurrentStep(){
+  removeLanguageSuggestion();
+  document.getElementById("noOtherSymptomsWrap")?.remove();
+
+  if(step==="main"){ setQuestion(C().qMain,C().phMain); renderStarterSuggestions(); return; }
+  if(step==="intent"){ askIntent(); return; }
+  if(step==="duration"){ setQuestion(C().qDuration,C().phDuration); return; }
+  if(step==="onset_pattern"){
+    askChoices(C().qOnsetPattern,[{t:C().sudden,v:"sudden"},{t:C().gradual,v:"gradual"},{t:C().unsure,v:"unsure"}]);return;
+  }
+  if(step==="patient"){
+    askChoices(C().qPatient,[{t:C().adult,v:"adult"},{t:C().child,v:"child"}]);return;
+  }
+  if(step==="targeted"){ askNextTargeted(); return; }
+  if(step==="severity"){
+    askChoices(C().qSeverity,[{t:C().mild,v:"mild"},{t:C().moderate,v:"moderate"},{t:C().severe,v:"severe"}]);return;
+  }
+  if(step==="other"){ setQuestion(C().qOther,C().phOther); renderNoOtherSymptomsButton(); return; }
+  if(step==="confirm"){ review(); return; }
+  if(step==="learn_done"){ learnMode(); return; }
+
+  // Final/safety screens keep their current content; footer and controls still
+  // switch language without restarting or discarding the conversation.
+  updateBackButton();
+}
+
 function reset(){
+  removeLanguageSuggestion();
   step="main";data=freshData();targetedQueue=[];answerHistory=[];preSymptomScreen=null;chat.innerHTML="";
   setQuestion(C().qMain,C().phMain);
   renderStarterSuggestions();  renderHdgFooter();}
@@ -1790,13 +1942,23 @@ function renderHdgFooter(){
 
 
 
-function setLanguage(lang){
+function setLanguage(lang,meta={source:"language_toggle"}){
+  if(lang===language){
+    document.getElementById("englishBtn").classList.toggle("active",lang==="English");
+    document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
+    return;
+  }
+
   language=lang;
-  hdgTrack("ask_hdg_language_selected",{source:"language_toggle"});
+  hdgTrack("ask_hdg_language_selected",{source:meta.source||"language_toggle"});
+  updateTranscriptSession({language});
   renderHdgFooter();
   document.getElementById("englishBtn").classList.toggle("active",lang==="English");
   document.getElementById("pidginBtn").classList.toggle("active",lang==="Pidgin");
-  reset();
+
+  // Keep data, answers, targeted queue, current step and transcript session.
+  // Only re-render the screen the user is currently on.
+  rerenderCurrentStep();
 }
 
 
@@ -2505,7 +2667,7 @@ function askIntent(){
   data.intent="ambiguous";
   data.duration="";
   data.onsetPattern="";
-  data.patient=queryExplicitlyAdultOnly(data.main)?"adult":"";
+  data.patient=inferPatientGroupFromQuery(data.main);
   data.severity="";
   data.other="";
   data.targeted={};
@@ -2552,10 +2714,10 @@ function beginSymptomFlow(){
  if(immediateDanger(data.main)){hardStopEmergency();return;}
  if(traumaDetected(data.main)){hardStopTrauma();return;}
 
- // Adult-only life-stage topics should never trigger an "adult or child?" question.
- if(queryExplicitlyAdultOnly(data.main)){
-   data.patient="adult";
- }
+ // Skip the patient-age question only when the user's wording/topic already
+ // gives a high-confidence patient group.
+ const inferredPatient=inferPatientGroupFromQuery(data.main);
+ if(inferredPatient) data.patient=inferredPatient;
 
  data.family=detectFamily(data.main);
  if(data.family!=="general")potentialWarning();
@@ -2579,8 +2741,22 @@ function beginSymptomFlow(){
 function submitText(){
   markInteractionStart();
   const v=input.value.trim();
-  if(!v){showCard(C().empty);return;}
+  if(!v){
+    if(step==="other"){
+      logTranscript("user",language==="Pidgin"?"No other symptom":"No other symptoms","choice_answer");
+      captureAnswerState();
+      data.other="";
+      review();
+      return;
+    }
+    showCard(C().empty);return;
+  }
   logTranscript("user",v,"text_answer");
+  const languageAtSubmit=language;
+  const detectedAtSubmit=(step==="main" || step==="other") ? detectMessageLanguage(v) : null;
+  if(detectedAtSubmit && detectedAtSubmit!==languageAtSubmit){
+    setTimeout(()=>offerLanguageSwitch(v),0);
+  }
 
   // Save the current screen before EVERY submission, including the first one.
   // This lets users return from "When did this start?" to the original question.
@@ -2684,7 +2860,7 @@ function choose(v){
 
   if(step==="severity"){
     data.severity=v;
-    step="other";setQuestion(C().qOther,C().phOther);return;
+    step="other";setQuestion(C().qOther,C().phOther);renderNoOtherSymptomsButton();return;
   }
 
   if(step==="confirm"){
