@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v63: language helper removed; English/Pidgin English selector retained -->
+<!-- v64 Performance: cached article index + non-blocking transcript queue + privacy-safe timing metrics -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -787,24 +787,57 @@ function parseIndex(text){
   }).filter(Boolean);
 }
 
-async function loadArticles(){
-  const status=document.getElementById("indexStatus");
-  const candidates=["./HDG_Public_Article_Index.txt","./HDG_Public_Article_Index(1).txt"];
-  for(const path of candidates){
-    try{
-      const r=await fetch(path,{cache:"no-store"});
-      if(!r.ok) continue;
-      const parsed=parseIndex(await r.text());
-      if(parsed.length){
-        ARTICLES=parsed;
-        status.textContent="";
-        console.log("HDG index loaded:",ARTICLES.length,"articles from",path);
-        return;
+let articleLoadPromise=null;
+let articleIndexReady=false;
+
+function loadArticles(){
+  if(articleLoadPromise) return articleLoadPromise;
+
+  articleLoadPromise=(async()=>{
+    const status=document.getElementById("indexStatus");
+    const candidates=["./HDG_Public_Article_Index.txt","./HDG_Public_Article_Index(1).txt"];
+    const started=performance.now();
+
+    for(const path of candidates){
+      try{
+        // Use normal browser/HTTP caching. GitHub Pages can revalidate when needed,
+        // while returning visitors avoid an unconditional fresh download.
+        const r=await fetch(path,{cache:"default"});
+        if(!r.ok) continue;
+
+        const parsed=parseIndex(await r.text());
+        if(parsed.length){
+          ARTICLES=parsed;
+          articleIndexReady=true;
+          status.textContent="";
+
+          const ms=Math.max(0,Math.round(performance.now()-started));
+          hdgTrack("ask_hdg_index_performance",{
+            index_load_ms:ms,
+            index_load_success:"yes",
+            source:"startup"
+          });
+          console.log("HDG index loaded:",ARTICLES.length,"articles from",path,`${ms}ms`);
+          return true;
+        }
+      }catch(e){
+        console.warn("Index candidate failed:",path,e);
       }
-    }catch(e){console.warn("Index candidate failed:",path,e);}
-  }
-  status.textContent="HDG article index could not load.";
-  console.error("HDG_INDEX_ERROR: no valid index file found");
+    }
+
+    articleIndexReady=false;
+    status.textContent="";
+    const ms=Math.max(0,Math.round(performance.now()-started));
+    hdgTrack("ask_hdg_index_performance",{
+      index_load_ms:ms,
+      index_load_success:"no",
+      source:"startup"
+    });
+    console.error("HDG_INDEX_ERROR: no valid index file found");
+    return false;
+  })();
+
+  return articleLoadPromise;
 }
 
 
@@ -1347,7 +1380,7 @@ backBtn.onclick=restorePreviousAnswer;
 
 
 
-/* ===== Ask HDG conversation logging (v55) =====
+/* ===== Ask HDG conversation logging (v64) =====
    Public frontend uses ONLY a Supabase publishable key.
    Never place a secret/service_role key here.
 */
@@ -1357,6 +1390,8 @@ const HDG_TRANSCRIPT_CONFIG={
 };
 
 let transcriptSessionId=null;
+let transcriptSessionPromise=null;
+let transcriptWriteQueue=Promise.resolve();
 
 function transcriptConfigured(){
   return /^https:\/\/.+\.supabase\.co$/i.test(HDG_TRANSCRIPT_CONFIG.SUPABASE_URL)
@@ -1387,15 +1422,23 @@ async function hdgRpc(functionName,payload={}){
 
 async function ensureTranscriptSession(){
   if(transcriptSessionId) return transcriptSessionId;
-  const r=await hdgRpc("hdg_start_chat_session",{
-    p_language:language,
-    p_assistant_version:"v55"
-  });
-  if(r.ok){
-    transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
-    return transcriptSessionId;
-  }
-  return null;
+  if(transcriptSessionPromise) return transcriptSessionPromise;
+
+  transcriptSessionPromise=(async()=>{
+    const r=await hdgRpc("hdg_start_chat_session",{
+      p_language:language,
+      p_assistant_version:"v64"
+    });
+    if(r.ok){
+      transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
+      return transcriptSessionId;
+    }
+    return null;
+  })();
+
+  const sid=await transcriptSessionPromise;
+  if(!sid) transcriptSessionPromise=null; // allow a later retry
+  return sid;
 }
 
 function plainTextFromHtml(html){
@@ -1404,30 +1447,44 @@ function plainTextFromHtml(html){
   return (d.textContent||"").replace(/\s+/g," ").trim().slice(0,2000);
 }
 
-async function logTranscript(sender,message,kind="message"){
+function logTranscript(sender,message,kind="message"){
   const clean=String(message||"").replace(/\s+/g," ").trim().slice(0,2000);
   if(!clean) return;
-  const sid=await ensureTranscriptSession();
-  if(!sid) return;
-  await hdgRpc("hdg_append_chat_message",{
-    p_session:sid,
-    p_sender:sender,
-    p_message:clean,
-    p_kind:kind
-  });
+
+  // Queue transcript writes so UI actions never wait on Supabase and messages
+  // retain their order even on slower connections.
+  transcriptWriteQueue=transcriptWriteQueue
+    .catch(()=>{})
+    .then(async()=>{
+      const sid=await ensureTranscriptSession();
+      if(!sid) return;
+      await hdgRpc("hdg_append_chat_message",{
+        p_session:sid,
+        p_sender:sender,
+        p_message:clean,
+        p_kind:kind
+      });
+    });
 }
 
-async function updateTranscriptSession(fields={}){
-  if(!transcriptSessionId) return;
+function updateTranscriptSession(fields={}){
   const allowed=["language","intent","topic_family","patient_group","outcome","helpful"];
   const safe={};
   for(const k of allowed){
     if(fields[k]!==undefined) safe[k]=String(fields[k]).slice(0,80);
   }
-  await hdgRpc("hdg_update_chat_session",{
-    p_session:transcriptSessionId,
-    p_fields:safe
-  });
+  if(!Object.keys(safe).length) return;
+
+  transcriptWriteQueue=transcriptWriteQueue
+    .catch(()=>{})
+    .then(async()=>{
+      const sid=await ensureTranscriptSession();
+      if(!sid) return;
+      await hdgRpc("hdg_update_chat_session",{
+        p_session:sid,
+        p_fields:safe
+      });
+    });
 }
 
 
@@ -1435,7 +1492,7 @@ async function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v44";
+const HDG_ANALYTICS_VERSION="v64";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -1450,7 +1507,8 @@ function hdgTrack(eventName,params={}){
       Object.entries(params)
         .filter(([k])=>[
           "intent","topic_family","patient_group","result_type","article_category",
-          "article_position","source","focus","helpful","disposition","has_results"
+          "article_position","source","focus","helpful","disposition","has_results",
+          "index_load_ms","interaction_response_ms","index_load_success"
         ].includes(k))
         .map(([k,v])=>[k,safeAnalyticsValue(v)])
     )
@@ -1511,11 +1569,30 @@ function wireTrackedArticleLinks(container=document){
   });
 }
 
+
+let interactionStartedAt=0;
+
+function markInteractionStart(){
+  interactionStartedAt=performance.now();
+}
+
+function reportInteractionTiming(source="interaction"){
+  if(!interactionStartedAt) return;
+  const ms=Math.max(0,Math.round(performance.now()-interactionStartedAt));
+  interactionStartedAt=0;
+  hdgTrack("ask_hdg_interaction_performance",{
+    interaction_response_ms:ms,
+    source
+  });
+}
+
 function C(){return COPY[language]}
 function showCard(html,type="normal"){
   const cls=type==="emergency"?" urgent":type==="urgent"?" caution":"";
   chat.innerHTML=`<div class="card${cls}">${html}</div>`;
-  logTranscript("assistant",plainTextFromHtml(html),type==="normal"?"assistant_message":type);  smoothFocusActive();
+  logTranscript("assistant",plainTextFromHtml(html),type==="normal"?"assistant_message":type);
+  reportInteractionTiming("card_render");
+  smoothFocusActive();
 }
 
 
@@ -1532,13 +1609,16 @@ function smoothFocusActive(){
 function setQuestion(q,ph=""){
   hideStarterSuggestions();
   promptEl.textContent=q;input.placeholder=ph;input.value="";
-  inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);  smoothFocusActive();
+  inputArea.classList.remove("hidden");updateBackButton();setTimeout(()=>input.focus(),0);
+  reportInteractionTiming("question_render");
+  smoothFocusActive();
 }
 
 
 function wireChoiceButtons(){
   chat.querySelectorAll("[data-v]").forEach(b=>{
     b.onclick=()=>{
+      markInteractionStart();
       const sourceStep=b.dataset.choiceStep || step;
       const value=b.dataset.v;
       logTranscript("user",b.textContent||value,"choice_answer");
@@ -2497,6 +2577,7 @@ function beginSymptomFlow(){
 }
 
 function submitText(){
+  markInteractionStart();
   const v=input.value.trim();
   if(!v){showCard(C().empty);return;}
   logTranscript("user",v,"text_answer");
@@ -2790,7 +2871,9 @@ ask.onclick=submitText;
 input.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();submitText();}});
 
 reset();
-loadArticles();
+// Paint the Ask HDG interface first; article loading begins immediately after
+// the initial UI frame and does not block the page becoming interactive.
+requestAnimationFrame(()=>{ loadArticles(); });
 </script>
 
 
