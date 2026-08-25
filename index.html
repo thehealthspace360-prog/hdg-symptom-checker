@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ask HDG | Health Decoded Guide</title>
-<!-- v65.4 strict ED retrieval + v65.3 patient-group routing + v65.1 routing fix + v65 UX: state-preserving language switch + optional language detection + no-other-symptoms escape; v64 performance retained -->
+<!-- v65.5 plural-erection canonical fix + v65.3 patient-group routing + v65.1 routing fix + v65 UX: state-preserving language switch + optional language detection + no-other-symptoms escape; v64 performance retained -->
 <style>
 *{box-sizing:border-box}
 :root{--green:#1f5b4b;--gold:#d5a515;--bg:#f6f7f4;--ink:#222;--muted:#6d746f;--red:#b42318;--amber:#a56500}
@@ -731,7 +731,7 @@ function canonicalMedicalTopic(text){
   if(/\b(enlarged prostate|prostate enlargement|big prostate|bph|benign prostatic hyperplasia)\b/.test(n)){
     return "prostate enlargement";
   }
-  if(/\b(erection|erection problem|erection problems|erection difficulty|erection difficulties|weak erection|poor erection|impotence|erectile dysfunction)\b/.test(n)
+  if(/\b(erection|erections|erection problem|erection problems|erection difficulty|erection difficulties|weak erection|weak erections|poor erection|poor erections|impotence|erectile dysfunction)\b/.test(n)
      || /\b(can(?:not|'t|t) get an erection|can(?:not|'t|t) keep an erection|difficulty getting an erection|difficulty keeping an erection)\b/.test(n)){
     return "erectile dysfunction";
   }
@@ -1297,7 +1297,7 @@ function queryExplicitlyAdultOnly(q){
   if(EXPLICIT_ADULT_MARKERS.some(x=>phraseBoundaryMatch(n,x))) return true;
 
   // Natural erection variants not always captured by a fixed phrase list.
-  const erectionContext=/\berection(s)?\b/.test(n) &&
+  const erectionContext=/\berections?\b/.test(n) &&
     /\b(difficult|difficulty|problem|problems|weak|poor|hard|keep|keeping|get|getting)\b/.test(n);
   return erectionContext;
 }
@@ -1507,7 +1507,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v65.4"
+      p_assistant_version:"v65.5"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1572,7 +1572,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v65.4";
+const HDG_ANALYTICS_VERSION="v65.5";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
