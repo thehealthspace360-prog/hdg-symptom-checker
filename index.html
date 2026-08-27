@@ -1507,7 +1507,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v65.7"
+      p_assistant_version:"v65.8"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1572,7 +1572,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v65.7";
+const HDG_ANALYTICS_VERSION="v65.8";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -2656,24 +2656,69 @@ function learnMode(){
     };
   }
 
+  // v65.8: robust Learn-focus controls.
+  // Use addEventListener and render an immediate response for every button.
   chat.querySelectorAll("[data-learn-focus]").forEach(btn=>{
-    btn.onclick=()=>{
-      const focus=btn.dataset.learnFocus,box=document.getElementById("learnFocusResults");
+    btn.addEventListener("click",(event)=>{
+      event.preventDefault();
+      event.stopPropagation();
+      markInteractionStart();
+
+      const focus=btn.getAttribute("data-learn-focus");
+      const box=chat.querySelector("#learnFocusResults");
+      if(!box) return;
+
+      chat.querySelectorAll("[data-learn-focus]").forEach(x=>x.classList.remove("selected"));
+      btn.classList.add("selected");
+
       hdgTrack("ask_hdg_learn_focus",{
         intent:"learn",topic_family:analyticsTopicFamily(),
-        patient_group:analyticsPatientGroup(),focus:focus
+        patient_group:analyticsPatientGroup(),focus:focus||"unknown"
       });
+
       if(focus==="full"){
-        box.innerHTML=`<div class="reason-box"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${language==="Pidgin"?"Open full HDG guide":"Open the full HDG guide"}</a></div>`;return;
+        box.innerHTML=`<div class="reason-box"><strong>${language==="Pidgin"?"Full guide":"Full guide"}</strong><div class="article"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${language==="Pidgin"?"Open full HDG guide":"Open the full HDG guide"}: ${esc(main.title)}</a></div></div>`;
+        wireTrackedArticleLinks(box);
+        reportInteractionTiming("learn_focus_render");
+        return;
       }
-      const term=focus==="seek"?"when to seek help":focus;
-      const focused=findLearnArticles(topic+" "+term,3);
-      box.innerHTML=focused.length
-        ? `<div class="reason-box"><strong>Closest HDG resources</strong>${focused.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a></div>`).join("")}</div>`
-        : `<div class="reason-box">${language==="Pidgin"?"HDG no get separate close resource for this part yet. Use the main guide above.":"HDG does not have a separate close resource for this section yet. Use the main guide above."}</div>`;
+
+      const labels={
+        symptoms: language==="Pidgin"?"Symptoms":"Symptoms",
+        causes: language==="Pidgin"?"Causes":"Causes",
+        treatment: language==="Pidgin"?"Treatment":"Treatment",
+        seek: language==="Pidgin"?"When to seek help":"When to seek help"
+      };
+      const searchTerms={
+        symptoms:"symptoms signs features",
+        causes:"causes risk factors",
+        treatment:"treatment management",
+        seek:"when to seek help medical care"
+      };
+      const label=labels[focus]||focus;
+      const term=searchTerms[focus]||focus||"";
+
+      // Keep the recognized medical topic intact and ask retrieval for resources
+      // related to this focus. Never let the focus word replace the main entity.
+      const focused=findLearnArticles(topic+" "+term,4);
+      const unique=[];
+      const seen=new Set();
+      focused.forEach(a=>{
+        if(a && !seen.has(a.url)){seen.add(a.url);unique.push(a);}
+      });
+
+      if(unique.length){
+        box.innerHTML=`<div class="reason-box"><strong>${esc(label)}</strong><p class="muted">${language==="Pidgin"?"These HDG resources fit help you understand this part of the topic.":"These HDG resources can help you understand this part of the topic."}</p>${unique.slice(0,3).map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("")}</div>`;
+      }else{
+        box.innerHTML=`<div class="reason-box"><strong>${esc(label)}</strong><p>${language==="Pidgin"?"HDG no get separate close resource for this part yet. Use the main guide above.":"HDG does not have a separate close resource for this section yet. Use the main guide above."}</p><div class="article"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${language==="Pidgin"?"Open main HDG guide":"Open the main HDG guide"}: ${esc(main.title)}</a></div></div>`;
+      }
+
       wireTrackedArticleLinks(box);
-    };
+      reportInteractionTiming("learn_focus_render");
+      box.scrollIntoView?.({behavior:"smooth",block:"nearest"});
+    });
   });
+
   wireTrackedArticleLinks(chat);
 }
 function askIntent(){
