@@ -1507,7 +1507,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v65.5"
+      p_assistant_version:"v65.7"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1572,7 +1572,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v65.5";
+const HDG_ANALYTICS_VERSION="v65.7";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -1934,9 +1934,10 @@ function rerenderCurrentStep(){
   if(step==="other"){ setQuestion(C().qOther,C().phOther); renderNoOtherSymptomsButton(); return; }
   if(step==="confirm"){ review(); return; }
   if(step==="learn_done"){ learnMode(); return; }
+  if(step==="helpful"){ finalOutcome({rerenderOnly:true}); return; }
 
-  // Final/safety screens keep their current content; footer and controls still
-  // switch language without restarting or discarding the conversation.
+  // Hard-stop safety/done screens keep their current content. Article-result
+  // screens above are re-retrieved in the newly selected language.
   updateBackButton();
 }
 
@@ -2494,7 +2495,13 @@ function findLearnArticles(topic,limit=4){
   // to preserve the selected language. If no close match exists in that language,
   // put the correct article from the other language first.
   const canonical=canonicalMedicalTopic(topic);
+
+  // v65.6: for a recognized named medical concept, learning mode must not
+  // return unrelated articles. Keep only strong entity matches when available.
   if(canonical && !wantsChild){
+    const strictSameLanguage=matches.filter(a=>isStrongEntityMatch(a,topic));
+    if(strictSameLanguage.length) matches=strictSameLanguage;
+
     const sameLanguageEntity=matches.find(a=>isStrongEntityMatch(a,topic));
 
     if(!sameLanguageEntity){
@@ -2591,7 +2598,7 @@ function learnMode(){
   input.placeholder="";
   inputArea.classList.add("hidden");
   updateBackButton();
-  const topic=data.topic||data.main,matches=findLearnArticles(expandQuerySynonyms(topic),4),main=matches[0];
+  const topic=data.topic||data.main,matches=findLearnArticles(topic,4),main=matches[0];
 
   if(!main){
     hdgTrack("ask_hdg_no_match",{
@@ -2660,7 +2667,7 @@ function learnMode(){
         box.innerHTML=`<div class="reason-box"><a href="${esc(main.url)}" target="_blank" rel="noopener noreferrer">${language==="Pidgin"?"Open full HDG guide":"Open the full HDG guide"}</a></div>`;return;
       }
       const term=focus==="seek"?"when to seek help":focus;
-      const focused=findLearnArticles(expandQuerySynonyms(topic+" "+term),3);
+      const focused=findLearnArticles(topic+" "+term,3);
       box.innerHTML=focused.length
         ? `<div class="reason-box"><strong>Closest HDG resources</strong>${focused.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a></div>`).join("")}</div>`
         : `<div class="reason-box">${language==="Pidgin"?"HDG no get separate close resource for this part yet. Use the main guide above.":"HDG does not have a separate close resource for this section yet. Use the main guide above."}</div>`;
@@ -3004,7 +3011,42 @@ function articleBlock(limit=3){
 
   return m.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("");
 }
-function finalOutcome(){
+function finalOutcome(options={}){
+  // v65.7: language toggles on an already-completed result screen re-run
+  // article retrieval in the newly selected language without changing answers.
+  if(options.rerenderOnly){
+    inputArea.classList.add("hidden");
+    const disposition=safetyDisposition();
+    if(disposition==="urgent"){
+      step="helpful";
+      showCard(`
+        <span class="badge amber">Urgent assessment</span><br>
+        <strong>${esc(C().urgentTitle)}</strong><br><br>${esc(C().urgentBody)}
+        ${uncertaintyBox()}
+        <hr><strong>${esc(C().rec)}</strong>
+        <div class="reason-box">${esc(recommendationReason())}</div>
+        ${articleBlock(2)}
+        <br><strong>${esc(C().helpful)}</strong>
+        <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
+      `,"urgent");
+    }else{
+      step="helpful";
+      showCard(`
+        <span class="badge green">Health navigation</span><br>
+        <strong>${esc(C().rec)}</strong>
+        <div class="reason-box">${esc(recommendationReason())}</div>
+        ${articleBlock(3)}
+        <p class="muted">${esc(C().greenBody)}</p>
+        <strong>${esc(C().helpful)}</strong>
+        <div class="choices"><button class="choice" data-v="yes">${esc(C().yes)}</button><button class="choice" data-v="no">${esc(C().no)}</button></div>
+      `);
+    }
+    wireChoiceButtons();
+    wireTrackedArticleLinks(chat);
+    updateBackButton();
+    return;
+  }
+
   const mentalContext=[data.main,data.other].filter(Boolean).join(" ");
   if(mentalHealthCrisisDetected(mentalContext)){hardStopMentalHealthCrisis();return;}
   if(severeMentalHealthDetected(mentalContext)){hardStopSevereMentalHealth();return;}
