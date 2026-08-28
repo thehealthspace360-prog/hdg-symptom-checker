@@ -252,7 +252,7 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 </style>
 </head>
 <body>
-<div style="max-width:760px;margin:8px auto;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:center">v66 LLM TEST — synthetic questions only</div>
+<div style="max-width:760px;margin:8px auto;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:center">v66.1 LLM TEST — synthetic questions only</div>
 <div class="wrap"><div class="checker">
 <div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
@@ -1516,11 +1516,11 @@ async function interpretWithLlm(userText){
     if(!validLlmInterpretation(result)) throw new Error("invalid_schema");
     hdgTrack("ask_hdg_llm_interpretation",{
       result_type:"success",language:result.language,intent:result.intent,
-      patient_group:result.patient_group,source:"v66_test"
+      patient_group:result.patient_group,source:"v66_1_test"
     });
     return result;
   }catch(e){
-    hdgTrack("ask_hdg_llm_interpretation",{result_type:"fallback",source:"v66_test"});
+    hdgTrack("ask_hdg_llm_interpretation",{result_type:"fallback",source:"v66_1_test"});
     console.warn("HDG interpretation unavailable — deterministic fallback active:",e?.message||e);
     return null;
   }finally{ clearTimeout(timer); }
@@ -1788,6 +1788,29 @@ function wireChoiceButtons(){
 
       // The Symptom-vs-Learn chooser can remain visible after symptom flow begins.
       // Honour what THAT button means, rather than the flow's newer global step.
+      if(sourceStep==="no_present"){
+        if(value==="learn"){
+          switchToLearnMode();
+          return;
+        }
+        if(value==="describe"){
+          // The interpreter found no symptom the user actually said was present.
+          // Ask for a fresh symptom description rather than entering duration/safety flow.
+          data.llm=null;
+          data.main="";
+          data.topic="";
+          data.intent="";
+          data.patient="";
+          step="main";
+          chat.innerHTML="";
+          setQuestion(
+            language==="Pidgin" ? "Tell me wetin you dey feel or wetin dey worry you." : "Tell me what you are feeling or what is worrying you.",
+            language==="Pidgin" ? "Type the symptom(s) wey you dey experience..." : "Type the symptom(s) you are experiencing..."
+          );
+          return;
+        }
+      }
+
       if(sourceStep==="intent"){
         hdgTrack("ask_hdg_intent_selected",{
           intent:value,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
@@ -2800,6 +2823,25 @@ function learnMode(){
 
   wireTrackedArticleLinks(chat);
 }
+function handleNoPresentSymptoms(){
+  // A valid LLM interpretation can mention a medical topic while correctly
+  // finding ZERO symptoms that the user says are actually present (e.g.
+  // "I do NOT have chest pain"). Never enter symptom/safety flow from topic alone.
+  promptEl.textContent="";
+  input.value="";
+  input.placeholder="";
+  inputArea.classList.add("hidden");
+  step="no_present";
+  const topic=String(data.topic||"").trim();
+  const q=language==="Pidgin"
+    ? (topic ? `You mention ${topic}, but you no talk say you dey experience am now. Wetin you wan do?` : "You no mention any symptom wey you dey experience now. Wetin you wan do?")
+    : (topic ? `You mentioned ${topic}, but you didn't say you are experiencing it now. What would you like to do?` : "You didn't mention a symptom you are currently experiencing. What would you like to do?");
+  askChoices(q,[
+    {t:language==="Pidgin"?"I just wan learn more":"I just want to learn more",v:"learn"},
+    {t:language==="Pidgin"?"I wan describe wetin I dey feel":"I want to describe my symptoms",v:"describe"}
+  ]);
+}
+
 function askIntent(){
   // Switching back to intent must visually leave the symptom screen completely.
   promptEl.textContent="";
@@ -2943,6 +2985,14 @@ async function submitText(){
 
     if(data.intent==="learn"){learnMode();return;}
     if(data.intent==="ambiguous"){askIntent();return;}
+
+    // v66 safety/flow guard: if Gemini successfully interpreted the message
+    // but found no PRESENT symptoms, do not ask duration and do not run safety
+    // against the topic/denied/uncertain text.
+    if(data.llm && data.intent==="symptom" && !String(data.main||"").trim()){
+      handleNoPresentSymptoms();
+      return;
+    }
 
     beginSymptomFlow();
     return;
