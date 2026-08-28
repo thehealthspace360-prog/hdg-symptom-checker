@@ -252,7 +252,7 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 </style>
 </head>
 <body>
-<div style="max-width:760px;margin:8px auto;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:center">v66.1 LLM TEST — synthetic questions only</div>
+<div style="max-width:760px;margin:8px auto;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:center">v66.2 LLM TEST — synthetic questions only</div>
 <div class="wrap"><div class="checker">
 <div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
@@ -1479,7 +1479,7 @@ const HDG_TRANSCRIPT_CONFIG={
 */
 const HDG_LLM_CONFIG={
   enabled:true,
-  timeoutMs:4500,
+  timeoutMs:3500,
   endpoint:`${HDG_TRANSCRIPT_CONFIG.SUPABASE_URL}/functions/v1/interpret-hdg`
 };
 
@@ -1496,8 +1496,29 @@ function validLlmInterpretation(x){
   return typeof x.topic==="string" && x.topic.length<=200;
 }
 
+function setLlmBusy(isBusy){
+  const existing=document.getElementById("hdgLlmBusy");
+  if(!isBusy){
+    existing?.remove();
+    ask.disabled=false;
+    input.disabled=false;
+    return;
+  }
+  existing?.remove();
+  ask.disabled=true;
+  input.disabled=true;
+  const status=document.createElement("div");
+  status.id="hdgLlmBusy";
+  status.className="status";
+  status.setAttribute("role","status");
+  status.setAttribute("aria-live","polite");
+  status.textContent=language==="Pidgin" ? "Make I understand your question…" : "Understanding your question…";
+  inputArea.insertBefore(status,prompt);
+}
+
 async function interpretWithLlm(userText){
   if(!HDG_LLM_CONFIG.enabled) return null;
+  setLlmBusy(true);
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),HDG_LLM_CONFIG.timeoutMs);
   try{
@@ -1516,14 +1537,17 @@ async function interpretWithLlm(userText){
     if(!validLlmInterpretation(result)) throw new Error("invalid_schema");
     hdgTrack("ask_hdg_llm_interpretation",{
       result_type:"success",language:result.language,intent:result.intent,
-      patient_group:result.patient_group,source:"v66_1_test"
+      patient_group:result.patient_group,source:"v66_2_test"
     });
     return result;
   }catch(e){
-    hdgTrack("ask_hdg_llm_interpretation",{result_type:"fallback",source:"v66_1_test"});
+    hdgTrack("ask_hdg_llm_interpretation",{result_type:"fallback",source:"v66_2_test"});
     console.warn("HDG interpretation unavailable — deterministic fallback active:",e?.message||e);
     return null;
-  }finally{ clearTimeout(timer); }
+  }finally{
+    clearTimeout(timer);
+    setLlmBusy(false);
+  }
 }
 
 function applyLlmInterpretation(x,rawText){
