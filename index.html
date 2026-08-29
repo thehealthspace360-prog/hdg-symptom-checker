@@ -252,7 +252,6 @@ textarea{width:100%;min-height:92px;border:1px solid #bbb;border-radius:10px;pad
 </style>
 </head>
 <body>
-<div style="max-width:760px;margin:8px auto;padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;text-align:center">v66.2 LLM TEST — synthetic questions only</div>
 <div class="wrap"><div class="checker">
 <div class="language">
     <button id="englishBtn" class="lang-btn active" type="button">English</button>
@@ -286,8 +285,6 @@ let targetedQueue=[];
 function freshData(){
   return {
     main:"",
-    rawMain:"",
-    llm:null,
     duration:"",
     onsetPattern:"",
     patient:"",
@@ -1472,106 +1469,6 @@ const HDG_TRANSCRIPT_CONFIG={
   SUPABASE_PUBLISHABLE_KEY:"sb_publishable_KcK_fCc42ObD5gJxeIkTpA_MULdl1h1"
 };
 
-/* ===== v66: private natural-language interpretation =====
-   Gemini key stays in Supabase Edge Function secrets. Never place it here.
-   A successful interpretation changes parsing only; HDG's deterministic
-   safety rules remain authoritative and see PRESENT symptoms only.
-*/
-const HDG_LLM_CONFIG={
-  enabled:true,
-  timeoutMs:3500,
-  endpoint:`${HDG_TRANSCRIPT_CONFIG.SUPABASE_URL}/functions/v1/interpret-hdg`
-};
-
-function validLlmInterpretation(x){
-  if(!x || typeof x!=="object") return false;
-  if(!["English","Pidgin"].includes(x.language)) return false;
-  if(!["symptoms","learn","ambiguous"].includes(x.intent)) return false;
-  if(!["adult","child","unknown"].includes(x.patient_group)) return false;
-  if(!["high","medium","low"].includes(x.confidence)) return false;
-  for(const k of ["present_symptoms","denied_symptoms","uncertain_symptoms"]){
-    if(!Array.isArray(x[k]) || x[k].length>12) return false;
-    if(x[k].some(v=>typeof v!=="string" || v.length>120)) return false;
-  }
-  return typeof x.topic==="string" && x.topic.length<=200;
-}
-
-function setLlmBusy(isBusy){
-  const existing=document.getElementById("hdgLlmBusy");
-  if(!isBusy){
-    existing?.remove();
-    ask.disabled=false;
-    input.disabled=false;
-    return;
-  }
-  existing?.remove();
-  ask.disabled=true;
-  input.disabled=true;
-  const status=document.createElement("div");
-  status.id="hdgLlmBusy";
-  status.className="status";
-  status.setAttribute("role","status");
-  status.setAttribute("aria-live","polite");
-  status.textContent=language==="Pidgin" ? "Make I understand your question…" : "Understanding your question…";
-  inputArea.insertBefore(status,prompt);
-}
-
-async function interpretWithLlm(userText){
-  if(!HDG_LLM_CONFIG.enabled) return null;
-  setLlmBusy(true);
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),HDG_LLM_CONFIG.timeoutMs);
-  try{
-    const r=await fetch(HDG_LLM_CONFIG.endpoint,{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "apikey":HDG_TRANSCRIPT_CONFIG.SUPABASE_PUBLISHABLE_KEY,
-        "Authorization":`Bearer ${HDG_TRANSCRIPT_CONFIG.SUPABASE_PUBLISHABLE_KEY}`
-      },
-      body:JSON.stringify({message:String(userText||"").slice(0,1000)}),
-      signal:controller.signal
-    });
-    if(!r.ok) throw new Error(`HTTP ${r.status}`);
-    const result=await r.json();
-    if(!validLlmInterpretation(result)) throw new Error("invalid_schema");
-    hdgTrack("ask_hdg_llm_interpretation",{
-      result_type:"success",language:result.language,intent:result.intent,
-      patient_group:result.patient_group,source:"v66_2_test"
-    });
-    return result;
-  }catch(e){
-    hdgTrack("ask_hdg_llm_interpretation",{result_type:"fallback",source:"v66_2_test"});
-    console.warn("HDG interpretation unavailable — deterministic fallback active:",e?.message||e);
-    return null;
-  }finally{
-    clearTimeout(timer);
-    setLlmBusy(false);
-  }
-}
-
-function applyLlmInterpretation(x,rawText){
-  data.rawMain=rawText;
-  data.llm=x;
-  if(!x) return false;
-
-  // CRITICAL SAFETY BOUNDARY: only explicitly PRESENT symptoms become data.main.
-  // topic/denied/uncertain are never injected into deterministic safety text.
-  data.main=(x.present_symptoms||[]).join("; ");
-  data.topic=String(x.topic||"").trim();
-  if(x.patient_group==="adult" || x.patient_group==="child") data.patient=x.patient_group;
-  if(x.intent==="learn") data.intent="learn";
-  else if(x.intent==="symptoms") data.intent="symptom";
-  else data.intent="ambiguous";
-  return true;
-}
-
-function effectiveRetrievalMain(){
-  if(data.llm) return [data.main,data.topic].filter(Boolean).join(" ");
-  return data.main||"";
-}
-
-
 let transcriptSessionId=null;
 let transcriptSessionPromise=null;
 let transcriptWriteQueue=Promise.resolve();
@@ -1610,7 +1507,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v66-llm-test"
+      p_assistant_version:"v65.8"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1675,7 +1572,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v66-llm-test";
+const HDG_ANALYTICS_VERSION="v65.8";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -1812,29 +1709,6 @@ function wireChoiceButtons(){
 
       // The Symptom-vs-Learn chooser can remain visible after symptom flow begins.
       // Honour what THAT button means, rather than the flow's newer global step.
-      if(sourceStep==="no_present"){
-        if(value==="learn"){
-          switchToLearnMode();
-          return;
-        }
-        if(value==="describe"){
-          // The interpreter found no symptom the user actually said was present.
-          // Ask for a fresh symptom description rather than entering duration/safety flow.
-          data.llm=null;
-          data.main="";
-          data.topic="";
-          data.intent="";
-          data.patient="";
-          step="main";
-          chat.innerHTML="";
-          setQuestion(
-            language==="Pidgin" ? "Tell me wetin you dey feel or wetin dey worry you." : "Tell me what you are feeling or what is worrying you.",
-            language==="Pidgin" ? "Type the symptom(s) wey you dey experience..." : "Type the symptom(s) you are experiencing..."
-          );
-          return;
-        }
-      }
-
       if(sourceStep==="intent"){
         hdgTrack("ask_hdg_intent_selected",{
           intent:value,topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup()
@@ -2782,7 +2656,7 @@ function learnMode(){
     };
   }
 
-  // v66-llm-test: robust Learn-focus controls.
+  // v65.8: robust Learn-focus controls.
   // Use addEventListener and render an immediate response for every button.
   chat.querySelectorAll("[data-learn-focus]").forEach(btn=>{
     btn.addEventListener("click",(event)=>{
@@ -2847,25 +2721,6 @@ function learnMode(){
 
   wireTrackedArticleLinks(chat);
 }
-function handleNoPresentSymptoms(){
-  // A valid LLM interpretation can mention a medical topic while correctly
-  // finding ZERO symptoms that the user says are actually present (e.g.
-  // "I do NOT have chest pain"). Never enter symptom/safety flow from topic alone.
-  promptEl.textContent="";
-  input.value="";
-  input.placeholder="";
-  inputArea.classList.add("hidden");
-  step="no_present";
-  const topic=String(data.topic||"").trim();
-  const q=language==="Pidgin"
-    ? (topic ? `You mention ${topic}, but you no talk say you dey experience am now. Wetin you wan do?` : "You no mention any symptom wey you dey experience now. Wetin you wan do?")
-    : (topic ? `You mentioned ${topic}, but you didn't say you are experiencing it now. What would you like to do?` : "You didn't mention a symptom you are currently experiencing. What would you like to do?");
-  askChoices(q,[
-    {t:language==="Pidgin"?"I just wan learn more":"I just want to learn more",v:"learn"},
-    {t:language==="Pidgin"?"I wan describe wetin I dey feel":"I want to describe my symptoms",v:"describe"}
-  ]);
-}
-
 function askIntent(){
   // Switching back to intent must visually leave the symptom screen completely.
   promptEl.textContent="";
@@ -2958,7 +2813,7 @@ function beginSymptomFlow(){
  continueAfterDurationSelective();
 }
 
-async function submitText(){
+function submitText(){
   markInteractionStart();
   const v=input.value.trim();
   if(!v){
@@ -2984,16 +2839,10 @@ async function submitText(){
 
   if(step==="main"){
     data.main=v;
-    data.rawMain=v;
     captureInitialContext(v);
-
-    // v66: interpretation is attempted first. If unavailable/invalid, the
-    // complete v66-llm-test deterministic parser continues unchanged.
-    const llm=await interpretWithLlm(v);
     data.intent=detectIntent(v);
     data.topic=cleanLearnTopic(v);
     data.route=detectRoute(v).id;
-    applyLlmInterpretation(llm,v);
     hdgTrack("ask_hdg_started",{
       intent:data.intent||"unknown",
       topic_family:analyticsTopicFamily(),
@@ -3009,14 +2858,6 @@ async function submitText(){
 
     if(data.intent==="learn"){learnMode();return;}
     if(data.intent==="ambiguous"){askIntent();return;}
-
-    // v66 safety/flow guard: if Gemini successfully interpreted the message
-    // but found no PRESENT symptoms, do not ask duration and do not run safety
-    // against the topic/denied/uncertain text.
-    if(data.llm && data.intent==="symptom" && !String(data.main||"").trim()){
-      handleNoPresentSymptoms();
-      return;
-    }
 
     beginSymptomFlow();
     return;
@@ -3178,7 +3019,7 @@ function recommendationReason(){
 function articleBlock(limit=3){
   if(!ARTICLES.length) return `<p>${esc(C().noMatch)}</p>`;
 
-  const mainQuery=effectiveRetrievalMain();
+  const mainQuery=data.main || "";
   const otherQuery=data.other || "";
 
   const preferred=findArticles(mainQuery,Math.max(limit,4));
