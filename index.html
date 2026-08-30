@@ -1164,8 +1164,16 @@ function positiveOtherSymptomContext(){
   return parsed.present.length ? parsed.present.join(" ") : (parsed.denied.length ? "" : (data.other||""));
 }
 
+function normalizedPresentSymptoms(){
+  const raw=[...(data.presentSymptoms||[])];
+  const set=new Set(raw);
+  // A more specific location wins over the generic parent concept.
+  if(set.has("lower back pain")) set.delete("back pain");
+  return [...set];
+}
+
 function combinedSymptomQuery(){
-  const concepts=[...(data.presentSymptoms||[])];
+  const concepts=normalizedPresentSymptoms();
   const other=parseSymptomPhrases(data.other||"");
   concepts.push(...other.present);
   const set=[...new Set(concepts)];
@@ -1476,7 +1484,7 @@ function findArticles(q,limit=3){
 
   const canonical=canonicalMedicalTopic(q);
 
-  // v65.9: strict canonical retrieval for recognized concepts.
+  // v65.9.1: strict canonical retrieval for recognized concepts.
   // If the query maps cleanly to a medical concept, never pad with weak lexical matches.
   if(canonical){
     const sameLanguage=ARTICLES.filter(a=>
@@ -1643,7 +1651,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v65.9"
+      p_assistant_version:"v65.9.1"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1708,7 +1716,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v65.9";
+const HDG_ANALYTICS_VERSION="v65.9.1";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -3133,7 +3141,7 @@ function review(){
   const other=data.other||C().no;
   showCard(`
     <strong>${esc(C().review)}</strong>
-    <div class="summary-row"><b>${language==="Pidgin"?"Main symptom":"Main symptom"}:</b> ${esc((data.presentSymptoms&&data.presentSymptoms.length)?data.presentSymptoms.join(" + "):data.main)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?(normalizedPresentSymptoms().length>1?"Main symptoms":"Main symptom"):(normalizedPresentSymptoms().length>1?"Main symptoms":"Main symptom")}:</b> ${esc(normalizedPresentSymptoms().length?normalizedPresentSymptoms().join(" + "):data.main)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na when e start":"When it started"}:</b> ${esc(data.duration)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na for":"For"}:</b> ${esc(data.patient==="child"?C().child:C().adult)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"How e strong reach":"Severity"}:</b> ${esc({mild:C().mild,moderate:C().moderate,severe:C().severe}[data.severity])}</div>
@@ -3203,10 +3211,44 @@ function externalFallbackBlock(query){
   return `<div class="reason-box"><strong>${esc(intro)}</strong>${resources.slice(0,2).map(r=>`<div class="article"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source)} — ${esc(r.title)}</a><br><span class="muted">External resource</span></div>`).join("")}</div>`;
 }
 
+function semanticArticleKey(a){
+  return norm(a.title)
+    .replace(/\b(explained|symptoms|causes|diagnosis|treatment|how to tell the difference|and when to see a doctor)\b/g," ")
+    .replace(/\s+/g," ").trim();
+}
+
+function isClearlyAcuteDuration(){
+  const d=norm(data.duration||"");
+  return /\b(today|tonight|this morning|this afternoon|this evening|just started|few hours|hour|hours|1 day|one day)\b/.test(d);
+}
+
+function isChronicArticle(a){
+  return /\b(chronic|long term|long-term)\b/.test(norm((a.title||"")+" "+(a.url||"")));
+}
+
+function combinationSpecificArticles(limit=3){
+  const set=new Set(normalizedPresentSymptoms());
+  const other=parseSymptomPhrases(data.other||"");
+  other.present.forEach(x=>set.add(x));
+  const has=x=>set.has(x);
+
+  // Burning/painful urination + back/lower-back pain: prefer urinary resources.
+  // Do not let a generic/chronic back-pain article dominate this combination.
+  if(has("painful urination") && (has("lower back pain")||has("back pain"))){
+    const urinary=ARTICLES.filter(a=>{
+      if(norm(a.language)!==norm(language) || !ageAppropriateArticle(a,"urinary tract infection")) return false;
+      const t=norm((a.title||"")+" "+(a.url||""));
+      return t.includes("urinary tract infection") || /\buti\b/.test(t) || t.includes("burning during urination") || t.includes("painful urination");
+    });
+    return urinary.slice(0,limit);
+  }
+  return [];
+}
+
 function articleBlock(limit=3){
   if(!ARTICLES.length) return `<p>${esc(C().noMatch)}</p>`;
 
-  const mainQuery=(data.presentSymptoms&&data.presentSymptoms.length)?data.presentSymptoms.join(" "):(data.main||"");
+  const mainQuery=normalizedPresentSymptoms().length?normalizedPresentSymptoms().join(" "):(data.main||"");
   const otherParsed=parseSymptomPhrases(data.other||"");
   const otherQuery=otherParsed.present.length?otherParsed.present.join(" "):(otherParsed.denied.length?"":(data.other||""));
 
@@ -3218,25 +3260,33 @@ function articleBlock(limit=3){
   const otherOnly=otherQuery ? findArticles(otherQuery,Math.max(limit,4)) : [];
 
   const seen=new Set();
+  const semanticSeen=new Set();
   const ordered=[];
+  const comboSpecific=combinationSpecificArticles(Math.max(limit,4));
+  const acute=isClearlyAcuteDuration();
 
   function add(list){
     list.forEach(a=>{
-      if(!seen.has(a.url)){
+      if(acute && isChronicArticle(a)) return;
+      const sk=semanticArticleKey(a);
+      if(!seen.has(a.url) && !semanticSeen.has(sk)){
         seen.add(a.url);
+        semanticSeen.add(sk);
         ordered.push(a);
       }
     });
   }
 
-  // Main symptom must stay dominant.
-  add(preferred.slice(0,2));
-
-  // Then allow one article informed by the whole symptom picture.
-  add(combined);
-
-  // Only use an additional-symptom article if room remains.
-  add(otherOnly);
+  // For recognized multi-symptom combinations, combination-relevant resources outrank
+  // single-symptom matches. This prevents e.g. acute urinary + back symptoms from
+  // collapsing into a chronic back-pain article.
+  if(comboSpecific.length){
+    add(comboSpecific);
+  }else{
+    add(combined);
+    add(preferred.slice(0,2));
+    add(otherOnly);
+  }
 
   const m=ordered.slice(0,limit);
 
