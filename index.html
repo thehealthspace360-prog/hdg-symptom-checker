@@ -296,7 +296,10 @@ function freshData(){
     uncertainSafety:false,
     intent:"",
     topic:"",
-    route:"general"
+    route:"general",
+    presentSymptoms:[],
+    deniedSymptoms:[],
+    uncertainSymptoms:[]
   };
 }
 
@@ -393,14 +396,16 @@ const IMMEDIATE_DANGER=[
 ];
 
 const FAMILY_RULES=[
-  {id:"chest", terms:["chest pain","chest pressure","chest tightness","tight chest","heavy chest","pain in my chest"]},
+  {id:"chest", terms:["chest pain","chest discomfort","chest pressure","chest tightness","tight chest","heavy chest","pain in my chest"]},
   {id:"breathing", terms:["difficulty breathing","shortness of breath","breathless","breathing problem","struggling to breathe","wheezing","noisy breathing"]},
-  {id:"neuro", terms:["severe headache","sudden headache","worst headache","headache","weakness","weak","one sided weakness","one-sided weakness","numbness","numb","vision loss","blind","blindness","loss of sight","cannot see","can't see","cant see","unable to see","blurred vision","double vision","deaf","deafness","hearing loss","cannot hear","can't hear","cant hear","unable to hear","slurred speech","face droop"]},
+  {id:"headache", terms:["headache","head pain","head dey pain","migraine"]},
+  {id:"neuro", terms:["severe headache","sudden headache","worst headache","weakness","weak","one sided weakness","one-sided weakness","numbness","numb","vision loss","blind","blindness","loss of sight","cannot see","can't see","cant see","unable to see","blurred vision","double vision","deaf","deafness","hearing loss","cannot hear","can't hear","cant hear","unable to hear","slurred speech","face droop"]},
   {id:"fainting", terms:["fainting","fainted","passed out","blackout","collapsed"]},
   {id:"bleeding", terms:["heavy bleeding","bleeding","vomiting blood","blood in vomit","coughing blood","blood in stool","black stool"]},
   {id:"abdominal", terms:["abdominal pain","stomach pain","tummy pain","belly pain","pelvic pain","lower abdominal pain"]},
   {id:"allergy", terms:["allergic reaction","allergy","swollen tongue","swollen throat","hives","widespread rash","anaphylaxis"]},
   {id:"fever", terms:["fever","high temperature","hot body","body dey hot","feverish"]},
+  {id:"urinary", terms:["painful urination","burning urination","burning when i pee","pain when peeing","urinary frequency","blood in urine","urinary tract infection","uti","kidney pain","flank pain"]},
   {id:"seizure", terms:["seizure","convulsion","fit","fitting","jerking"]},
   {id:"mental", terms:["suicidal","suicide","kill myself","harm myself","self harm","self-harm"]},
   {id:"general", terms:[]}
@@ -425,6 +430,18 @@ const TARGETED={
     {id:"neuro_vision",qE:"Is there sudden loss of vision, severe blurred/double vision, severe confusion or loss of balance?",qP:"Sudden vision loss, serious blurred/double vision, serious confusion or loss of balance dey?",options:["yes","no","unsure"]},
     {id:"neuro_hearing",qE:"Is there sudden hearing loss or deafness in one or both ears?",qP:"Sudden hearing loss or deafness for one or both ear dey?",options:["yes","no","unsure"]},
     {id:"neuro_fever",qE:"Is there fever with a stiff neck or a rash that does not fade when pressed?",qP:"Fever with stiff neck or rash wey no fade when you press am dey?",options:["yes","no","unsure"]}
+  ],
+  headache:[
+    {id:"head_sudden",qE:"Did the headache start suddenly and become very severe within a minute?",qP:"Headache start suddenly and become very serious within about one minute?",options:["yes","no","unsure"]},
+    {id:"head_neuro",qE:"Is there new weakness or numbness on one side, trouble speaking, severe confusion, fainting or a seizure?",qP:"New one-side weakness/numbness, trouble to talk, serious confusion, fainting or seizure join am?",options:["yes","no","unsure"]},
+    {id:"head_fever",qE:"Is there fever with a stiff neck or a rash that does not fade when pressed?",qP:"Fever with stiff neck or rash wey no fade when you press am dey?",options:["yes","no","unsure"]},
+    {id:"head_injury",qE:"Did this headache start after a significant head injury?",qP:"This headache start after serious head injury?",options:["yes","no","unsure"]}
+  ],
+  urinary:[
+    {id:"urine_fever",qE:"Is there fever, chills or feeling very unwell?",qP:"Fever, chills or body dey very unwell join am?",options:["yes","no","unsure"]},
+    {id:"urine_flank",qE:"Is there pain in the side or back below the ribs?",qP:"Pain dey for side or back under the ribs?",options:["yes","no","unsure"]},
+    {id:"urine_vomit",qE:"Is there repeated vomiting or difficulty keeping fluids down?",qP:"Repeated vomiting dey or person no fit keep fluid down?",options:["yes","no","unsure"]},
+    {id:"urine_preg",qE:"If pregnancy could be possible: is pregnancy possible or confirmed?",qP:"If pregnancy fit possible: pregnancy possible or confirmed?",options:["yes","no","na"]}
   ],
   fainting:[
     {id:"faint_recovered",qE:"Has the person fully recovered and is responding normally now?",qP:"Person don fully recover and dey respond normally now?",options:["yes","no","unsure"]},
@@ -502,7 +519,7 @@ function answer(id){return data.targeted[id]||""}
 
 
 function freeTextSafetyFacts(){
-  const t=norm(normalizeEverydaySymptoms(data.other||""));
+  const t=norm(normalizeEverydaySymptoms(positiveOtherSymptomContext()));
   return {
     chestAssoc: includesAny(t,["shortness of breath","breathless","sweating","sweaty","nausea","feeling sick","light headed","light-headed","dizzy"]),
     chestSpread: includesAny(t,["pain spreading to arm","pain spreading to arms","pain spreading to jaw","pain spreading to neck","pain spreading to back"]),
@@ -527,7 +544,7 @@ function freeTextSafetyFacts(){
 }
 
 function safetyDisposition(){
-  const ctx=norm(normalizeEverydaySymptoms([data.main,data.other].filter(Boolean).join(" ")));
+  const ctx=norm(normalizeEverydaySymptoms(fullPositiveContext()));
   const ft=freeTextSafetyFacts();
 
   if(immediateDanger(ctx)) return "emergency";
@@ -608,6 +625,19 @@ function safetyDisposition(){
     if(answer("neuro_fever")==="yes") return "urgent";
   }
 
+  if(data.family==="headache"){
+    if(answer("head_sudden")==="yes") return "emergency";
+    if(answer("head_neuro")==="yes") return "emergency";
+    if(answer("head_fever")==="yes") return "urgent";
+    if(answer("head_injury")==="yes") return "urgent";
+  }
+
+  if(data.family==="urinary"){
+    if(answer("urine_fever")==="yes" && answer("urine_flank")==="yes") return "urgent";
+    if(answer("urine_vomit")==="yes") return "urgent";
+    if(answer("urine_preg")==="yes" && (answer("urine_fever")==="yes" || answer("urine_flank")==="yes")) return "urgent";
+  }
+
   if(data.family==="fainting"){
     if(answer("faint_recovered")==="no") return "emergency";
     if(answer("faint_chest")==="yes" || answer("faint_neuro")==="yes") return "urgent";
@@ -654,11 +684,12 @@ function safetyDisposition(){
 
   // If the additional symptom introduces a different high-risk family,
   // reassess that family too rather than staying locked to the original complaint.
-  const secondaryFamily=detectFamily(data.other||"");
-  if(secondaryFamily==="chest" && includesAny(data.other,["chest pain","chest pressure","chest tightness"])){
+  const positiveOther=positiveOtherSymptomContext();
+  const secondaryFamily=detectFamily(positiveOther);
+  if(secondaryFamily==="chest" && includesAny(positiveOther,["chest pain","chest pressure","chest tightness","chest discomfort"])){
     if(ft.chestAssoc || ft.chestPressure) return "urgent";
   }
-  if(secondaryFamily==="breathing" && includesAny(data.other,["difficulty breathing","shortness of breath","breathless","breathing problem"])){
+  if(secondaryFamily==="breathing" && includesAny(positiveOther,["difficulty breathing","shortness of breath","breathless","breathing problem"])){
     return "urgent";
   }
   if(secondaryFamily==="neuro" && (ft.neuroFast || ft.neuroSudden)){
@@ -738,6 +769,13 @@ function canonicalMedicalTopic(text){
   if(/\b(pcos|polycystic ovary syndrome)\b/.test(n)){
     return "pcos";
   }
+  if(/\b(lower back pain|low back pain)\b/.test(n)) return "back pain";
+  if(/\b(back pain|backache)\b/.test(n)) return "back pain";
+  if(/\b(headache|head pain|head dey pain)\b/.test(n)) return "headache";
+  if(/\b(heartburn|acid reflux|reflux|chest burning|burning sensation in chest)\b/.test(n)) return "heartburn";
+  if(/\b(painful urination|burning urination|burning when i pee|pain when peeing|pee burns)\b/.test(n)) return "painful urination";
+  if(/\b(urinary tract infection|uti)\b/.test(n)) return "urinary tract infection";
+  if(/\b(chest discomfort)\b/.test(n)) return "chest discomfort";
   return "";
 }
 
@@ -767,6 +805,14 @@ function isStrongEntityMatch(a,topic){
            title.includes("polycystic ovary syndrome") ||
            keys.includes("polycystic ovary syndrome");
   }
+
+  const url=norm(a.url);
+  if(canonical==="back pain") return title.includes("back pain") || url.includes("back-pain");
+  if(canonical==="headache") return title.includes("headache") || url.includes("headache");
+  if(canonical==="heartburn") return title.includes("heartburn") || title.includes("acid reflux") || url.includes("heartburn") || url.includes("acid-reflux");
+  if(canonical==="painful urination" || canonical==="urinary tract infection")
+    return title.includes("urinary tract infection") || /\buti\b/.test(title) || url.includes("urinary-tract-infection") || url.includes("uti");
+  if(canonical==="chest discomfort") return title.includes("chest pain") || title.includes("chest discomfort") || url.includes("chest-pain");
 
   return false;
 }
@@ -1048,6 +1094,99 @@ const EVERYDAY_SYMPTOM_MAP=[
     "baby is floppy","child is floppy","baby feels floppy","pikin body loose"
   ]}
 ];
+
+const HDG_SYMPTOM_CONCEPTS=[
+  {name:"chest pain",aliases:["chest pain","pain in my chest"]},
+  {name:"chest discomfort",aliases:["chest discomfort","discomfort in my chest","uncomfortable chest"]},
+  {name:"chest pressure",aliases:["chest pressure","pressure in my chest"]},
+  {name:"chest tightness",aliases:["chest tightness","tight chest","chest feels tight"]},
+  {name:"heartburn",aliases:["heartburn","acid reflux","reflux","burning in my chest","burning sensation in chest","chest burning"]},
+  {name:"headache",aliases:["headache","head pain","head dey pain"]},
+  {name:"dizziness",aliases:["dizziness","dizzy","light headed","light-headed"]},
+  {name:"shortness of breath",aliases:["shortness of breath","breathless","difficulty breathing","breathing difficulty"]},
+  {name:"abdominal pain",aliases:["abdominal pain","stomach pain","tummy pain","belly pain","belle dey pain","pain in my belly"]},
+  {name:"back pain",aliases:["back pain","my back hurts","back dey pain"]},
+  {name:"lower back pain",aliases:["lower back pain","pain in my lower back","low back pain","lower back hurts"]},
+  {name:"painful urination",aliases:["painful urination","burning urination","burning pee","burning when i pee","it burns when i pee","pee burns","pain when peeing","pain when i urinate","urine dey burn me","e dey pain me when i pee"]},
+  {name:"urinary frequency",aliases:["urinary frequency","peeing all the time","urinating all the time","pee often","peeing often"]},
+  {name:"blood in urine",aliases:["blood in urine","blood in my pee","pee has blood","urine has blood"]},
+  {name:"fever",aliases:["fever","high temperature","feverish","body dey hot"]},
+  {name:"vomiting",aliases:["vomiting","vomit","throwing up"]},
+  {name:"weakness",aliases:["weakness","feeling weak","weak"]},
+  {name:"numbness",aliases:["numbness","numb"]},
+  {name:"fainting",aliases:["fainting","fainted","passed out","blackout","collapsed"]},
+  {name:"seizure",aliases:["seizure","convulsion","fitting"]},
+  {name:"suicidal thoughts",aliases:["suicidal thoughts","suicidal ideation","thoughts of suicide","want to kill myself","want to harm myself","self harm thoughts"]}
+];
+
+function symptomPolarityAt(text,idx){
+  const before=norm(String(text||"").slice(Math.max(0,idx-70),idx));
+  if(/(?:not sure|not certain|unsure|dont know|don t know|do not know|no sure|i wonder|maybe|might be|could be)(?:\s+\w+){0,5}\s*$/.test(before)) return "uncertain";
+  if(/(?:do not have|don t have|dont have|not having|not experiencing|without|no sign of|deny|denies|never get|no get|no dey get|no dey feel|i no get|i no dey feel|no)(?:\s+\w+){0,4}\s*$/.test(before)) return "denied";
+  return "present";
+}
+
+function parseSymptomPhrases(text){
+  const raw=String(text||"");
+  const n=norm(raw);
+  const found={present:[],denied:[],uncertain:[]};
+  const seen=new Set();
+  const conceptPool=[...HDG_SYMPTOM_CONCEPTS, ...EVERYDAY_SYMPTOM_MAP.map(x=>({name:x.standard,aliases:x.phrases}))];
+  conceptPool.forEach(c=>{
+    let bestIdx=-1;
+    for(const alias of c.aliases){
+      const i=n.indexOf(norm(alias));
+      if(i>=0 && (bestIdx<0 || i<bestIdx)) bestIdx=i;
+    }
+    if(bestIdx<0 || seen.has(c.name)) return;
+    seen.add(c.name);
+    const pol=symptomPolarityAt(n,bestIdx);
+    found[pol].push(c.name);
+  });
+  return found;
+}
+
+function positiveSymptomContext(){
+  if(Array.isArray(data.presentSymptoms) && data.presentSymptoms.length) return data.presentSymptoms.join(" ");
+  if(Array.isArray(data.deniedSymptoms) && data.deniedSymptoms.length) return "";
+  return data.main||"";
+}
+
+function fullPositiveContext(){
+  const main=positiveSymptomContext();
+  const otherParsed=parseSymptomPhrases(data.other||"");
+  const other=otherParsed.present.length ? otherParsed.present.join(" ") : (otherParsed.denied.length ? "" : (data.other||""));
+  return [main,other].filter(Boolean).join(" ");
+}
+
+function positiveOtherSymptomContext(){
+  const parsed=parseSymptomPhrases(data.other||"");
+  return parsed.present.length ? parsed.present.join(" ") : (parsed.denied.length ? "" : (data.other||""));
+}
+
+function combinedSymptomQuery(){
+  const concepts=[...(data.presentSymptoms||[])];
+  const other=parseSymptomPhrases(data.other||"");
+  concepts.push(...other.present);
+  const set=[...new Set(concepts)];
+  const has=x=>set.includes(x);
+  if(has("painful urination") && (has("lower back pain")||has("back pain")))
+    return set.join(" ")+" urinary tract infection kidney infection pyelonephritis";
+  if((has("chest discomfort")||has("chest pressure")||has("chest tightness")) && has("heartburn"))
+    return set.join(" ")+" heartburn acid reflux chest discomfort";
+  return set.join(" ");
+}
+
+function handleDeniedOnlyInput(){
+  const topic=(data.deniedSymptoms||[]).join(", ") || data.topic || data.main;
+  step="intent";
+  inputArea.classList.add("hidden");
+  const msg=language==="Pidgin"
+    ? `You mention ${esc(topic)}, but you talk say you no dey experience am now. Wetin you wan do?`
+    : `You mentioned ${esc(topic)}, but said you are not experiencing it now. What would you like to do?`;
+  showCard(`<strong>${msg}</strong><div class="choices"><button type="button" class="choice" data-v="learn">${language==="Pidgin"?"I just wan understand am":"I just want to learn more"}</button><button type="button" class="choice" data-v="symptom">${language==="Pidgin"?"I wan describe another symptom":"I want to describe my symptoms"}</button></div>`);
+  wireChoiceButtons();
+}
 
 function normalizeEverydaySymptoms(text){
   const raw=String(text||"");
@@ -1337,27 +1476,24 @@ function findArticles(q,limit=3){
 
   const canonical=canonicalMedicalTopic(q);
 
-  // v65.4: strict canonical retrieval for high-confidence named concepts.
-  // For erectile dysfunction, never pad results with unrelated lexical matches
-  // such as constipation, prostate cancer or other Men's Health pages.
-  if(canonical==="erectile dysfunction"){
+  // v65.9: strict canonical retrieval for recognized concepts.
+  // If the query maps cleanly to a medical concept, never pad with weak lexical matches.
+  if(canonical){
     const sameLanguage=ARTICLES.filter(a=>
       norm(a.language)===norm(language) &&
       ageAppropriateArticle(a,q) &&
       isStrongEntityMatch(a,q)
     );
-
     const crossLanguage=ARTICLES.filter(a=>
       norm(a.language)!==norm(language) &&
       ageAppropriateArticle(a,q) &&
       isStrongEntityMatch(a,q)
     );
-
     const pool=sameLanguage.length ? sameLanguage : crossLanguage;
-    const seen=new Set();
-    return pool
-      .filter(a=>!seen.has(a.url)&&seen.add(a.url))
-      .slice(0,limit);
+    if(pool.length){
+      const seen=new Set();
+      return pool.filter(a=>!seen.has(a.url)&&seen.add(a.url)).slice(0,limit);
+    }
   }
 
   const ranked=pref
@@ -1507,7 +1643,7 @@ async function ensureTranscriptSession(){
   transcriptSessionPromise=(async()=>{
     const r=await hdgRpc("hdg_start_chat_session",{
       p_language:language,
-      p_assistant_version:"v65.8"
+      p_assistant_version:"v65.9"
     });
     if(r.ok){
       transcriptSessionId=String(r.data||"").replace(/^"|"$/g,"");
@@ -1572,7 +1708,7 @@ function updateTranscriptSession(fields={}){
    No raw question, symptom, duration, free-text answer, or clinical answer is sent.
    The iframe sends only predefined product events + coarse metadata to its parent page.
 */
-const HDG_ANALYTICS_VERSION="v65.8";
+const HDG_ANALYTICS_VERSION="v65.9";
 
 function safeAnalyticsValue(v){
   if(v===undefined || v===null) return "";
@@ -2023,7 +2159,7 @@ function hasHearingLossText(){
 }
 
 function hasWeaknessNeuroText(){
-  const t=norm([data.main,data.other].filter(Boolean).join(" "));
+  const t=norm(fullPositiveContext());
   return [
     "one sided weakness","one-sided weakness","weakness one side",
     "one sided numbness","one-sided numbness","numbness one side",
@@ -2058,7 +2194,7 @@ function uncertaintyExplanation(){ return ""; }
 function uncertaintyBox(){ return ""; }
 
 function safetyReason(){
-  const ctx=norm(normalizeEverydaySymptoms([data.main,data.other].filter(Boolean).join(" ")));
+  const ctx=norm(normalizeEverydaySymptoms(fullPositiveContext()));
   const a=id=>answer(id)==="yes";
 
   if(hasVisionLossText() && suddenOnsetKnown())
@@ -2783,19 +2919,20 @@ function continueAfterDurationSelective(){
 }
 
 function beginSymptomFlow(){
- if(mentalHealthCrisisDetected(data.main)){hardStopMentalHealthCrisis();return;}
- if(severeMentalHealthDetected(data.main)){hardStopSevereMentalHealth();return;}
- if(lumpOrBirthmarkUrgentDetected(data.main)){hardStopLumpOrBirthmark();return;}
- if(immediateDanger(data.main)){hardStopEmergency();return;}
- if(traumaDetected(data.main)){hardStopTrauma();return;}
+ const positiveMain=positiveSymptomContext();
+ if(mentalHealthCrisisDetected(positiveMain)){hardStopMentalHealthCrisis();return;}
+ if(severeMentalHealthDetected(positiveMain)){hardStopSevereMentalHealth();return;}
+ if(lumpOrBirthmarkUrgentDetected(positiveMain)){hardStopLumpOrBirthmark();return;}
+ if(immediateDanger(positiveMain)){hardStopEmergency();return;}
+ if(traumaDetected(positiveMain)){hardStopTrauma();return;}
 
  // Skip the patient-age question only when the user's wording/topic already
  // gives a high-confidence patient group.
- const inferredPatient=inferPatientGroupFromQuery(data.main);
+ const inferredPatient=inferPatientGroupFromQuery(positiveMain||data.main);
  if(inferredPatient) data.patient=inferredPatient;
 
- data.family=detectFamily(data.main);
- if(data.family!=="general")potentialWarning();
+ data.family=detectFamily(combinedSymptomQuery()||positiveMain||data.main);
+ if(data.family!=="general" && data.family!=="headache" && data.family!=="urinary")potentialWarning();
 
  // If the user already stated sudden vision/hearing loss or stroke-type weakness,
  // act before the ordinary questionnaire continues.
@@ -2840,6 +2977,10 @@ function submitText(){
   if(step==="main"){
     data.main=v;
     captureInitialContext(v);
+    const parsedMain=parseSymptomPhrases(v);
+    data.presentSymptoms=parsedMain.present;
+    data.deniedSymptoms=parsedMain.denied;
+    data.uncertainSymptoms=parsedMain.uncertain;
     data.intent=detectIntent(v);
     data.topic=cleanLearnTopic(v);
     data.route=detectRoute(v).id;
@@ -2856,6 +2997,7 @@ function submitText(){
       patient_group:analyticsPatientGroup()
     });
 
+    if(data.presentSymptoms.length===0 && data.deniedSymptoms.length>0 && data.intent!=="learn"){handleDeniedOnlyInput();return;}
     if(data.intent==="learn"){learnMode();return;}
     if(data.intent==="ambiguous"){askIntent();return;}
 
@@ -2873,18 +3015,25 @@ function submitText(){
 
   if(step==="other"){
     data.other=/^(no|none|nope|nothing)$/i.test(v)?"":v;
-    const mentalContext=[data.main,data.other].filter(Boolean).join(" ");
+    const parsedOther=parseSymptomPhrases(data.other);
+    const positiveOther=parsedOther.present.length?parsedOther.present.join(" "):(parsedOther.denied.length?"":data.other);
+    const mentalContext=[positiveSymptomContext(),positiveOther].filter(Boolean).join(" ");
     if(mentalHealthCrisisDetected(mentalContext)){hardStopMentalHealthCrisis();return;}
     if(severeMentalHealthDetected(mentalContext)){hardStopSevereMentalHealth();return;}
     if(lumpOrBirthmarkUrgentDetected(mentalContext)){hardStopLumpOrBirthmark();return;}
-    if(immediateDanger(data.other)){hardStopEmergency();return;}
-    if(traumaDetected(data.other)){hardStopTrauma();return;}
+    if(immediateDanger(positiveOther)){hardStopEmergency();return;}
+    if(traumaDetected(positiveOther)){hardStopTrauma();return;}
     if(normalFlowNeuroStop()) return;
     review();
   }
 }
 function choose(v){
   if(!["helpful","retry"].includes(step))captureAnswerState();
+
+  if(step==="intent" && data.deniedSymptoms && data.deniedSymptoms.length){
+    if(v==="learn"){ data.intent="learn"; data.topic=data.deniedSymptoms.join(" "); learnMode(); return; }
+    if(v==="symptom"){ reset(); setTimeout(()=>input.focus(),0); return; }
+  }
 
   if(step==="onset_pattern"){
     if(v==="unsure")data.uncertainSafety=true;
@@ -2984,7 +3133,7 @@ function review(){
   const other=data.other||C().no;
   showCard(`
     <strong>${esc(C().review)}</strong>
-    <div class="summary-row"><b>${language==="Pidgin"?"Main symptom":"Main symptom"}:</b> ${esc(data.main)}</div>
+    <div class="summary-row"><b>${language==="Pidgin"?"Main symptom":"Main symptom"}:</b> ${esc((data.presentSymptoms&&data.presentSymptoms.length)?data.presentSymptoms.join(" + "):data.main)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na when e start":"When it started"}:</b> ${esc(data.duration)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"Na for":"For"}:</b> ${esc(data.patient==="child"?C().child:C().adult)}</div>
     <div class="summary-row"><b>${language==="Pidgin"?"How e strong reach":"Severity"}:</b> ${esc({mild:C().mild,moderate:C().moderate,severe:C().severe}[data.severity])}</div>
@@ -3016,15 +3165,54 @@ function recommendationReason(){
   return "Ask HDG selected these resources mainly from "+bits.join(", ")+".";
 }
 
+const TRUSTED_EXTERNAL_RESOURCES={
+  "back pain":[
+    {source:"NHS",title:"Back pain",url:"https://www.nhs.uk/conditions/back-pain/"},
+    {source:"MedlinePlus",title:"Back Pain",url:"https://medlineplus.gov/backpain.html"}
+  ],
+  "headache":[
+    {source:"NHS",title:"Headaches",url:"https://www.nhs.uk/conditions/headaches/"},
+    {source:"MedlinePlus",title:"Headache",url:"https://medlineplus.gov/headache.html"}
+  ],
+  "heartburn":[
+    {source:"NHS",title:"Heartburn and acid reflux",url:"https://www.nhs.uk/conditions/heartburn-and-acid-reflux/"},
+    {source:"MedlinePlus",title:"Heartburn",url:"https://medlineplus.gov/heartburn.html"}
+  ],
+  "painful urination":[
+    {source:"NHS",title:"Urinary tract infections (UTIs)",url:"https://www.nhs.uk/conditions/urinary-tract-infections-utis/"},
+    {source:"MedlinePlus",title:"Urinary Tract Infections",url:"https://medlineplus.gov/urinarytractinfections.html"}
+  ],
+  "urinary tract infection":[
+    {source:"NHS",title:"Urinary tract infections (UTIs)",url:"https://www.nhs.uk/conditions/urinary-tract-infections-utis/"},
+    {source:"MedlinePlus",title:"Urinary Tract Infections",url:"https://medlineplus.gov/urinarytractinfections.html"}
+  ]
+};
+
+function externalFallbackBlock(query){
+  const canonical=canonicalMedicalTopic(query);
+  const direct=TRUSTED_EXTERNAL_RESOURCES[canonical]||[];
+  const safeQ=encodeURIComponent(String(query||"").slice(0,140));
+  const resources=direct.length?direct:[
+    {source:"NHS",title:"Search NHS for this topic",url:`https://www.nhs.uk/search/results?q=${safeQ}`},
+    {source:"MedlinePlus",title:"Search MedlinePlus for this topic",url:`https://medlineplus.gov/search/?query=${safeQ}`}
+  ];
+  hdgTrack("ask_hdg_external_fallback",{intent:data.intent||"symptom",topic_family:analyticsTopicFamily(),patient_group:analyticsPatientGroup(),source:canonical||"trusted_search"});
+  const intro=language==="Pidgin"
+    ? "HDG no currently get article wey match this topic closely enough. Here are trusted external resources:" 
+    : "HDG does not currently have an article that matches this topic closely enough. Here are trusted external resources:";
+  return `<div class="reason-box"><strong>${esc(intro)}</strong>${resources.slice(0,2).map(r=>`<div class="article"><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.source)} — ${esc(r.title)}</a><br><span class="muted">External resource</span></div>`).join("")}</div>`;
+}
+
 function articleBlock(limit=3){
   if(!ARTICLES.length) return `<p>${esc(C().noMatch)}</p>`;
 
-  const mainQuery=data.main || "";
-  const otherQuery=data.other || "";
+  const mainQuery=(data.presentSymptoms&&data.presentSymptoms.length)?data.presentSymptoms.join(" "):(data.main||"");
+  const otherParsed=parseSymptomPhrases(data.other||"");
+  const otherQuery=otherParsed.present.length?otherParsed.present.join(" "):(otherParsed.denied.length?"":(data.other||""));
 
   const preferred=findArticles(mainQuery,Math.max(limit,4));
 
-  const combinedQuery=[mainQuery,otherQuery].filter(Boolean).join(" ");
+  const combinedQuery=combinedSymptomQuery() || [mainQuery,otherQuery].filter(Boolean).join(" ");
   const combined=findArticles(combinedQuery,Math.max(limit,6));
 
   const otherOnly=otherQuery ? findArticles(otherQuery,Math.max(limit,4)) : [];
@@ -3052,7 +3240,7 @@ function articleBlock(limit=3){
 
   const m=ordered.slice(0,limit);
 
-  if(!m.length) return `<p>${esc(C().noMatch)}</p>`;
+  if(!m.length) return externalFallbackBlock(combinedQuery||mainQuery||data.topic||data.main);
 
   return m.map(a=>`<div class="article"><a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a>${a.category?`<br><span class="muted">${esc(a.category)}</span>`:""}</div>`).join("");
 }
