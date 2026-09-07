@@ -1739,11 +1739,30 @@ function hdgTrack(eventName,params={}){
   };
 
   // Primary route when Ask HDG is embedded in Webador.
-  try{
-    if(window.parent && window.parent!==window){
-      window.parent.postMessage({type:"HDG_ANALYTICS",event:eventName,params:safe},"*");
-    }
-  }catch(e){}
+  // TEMPORARY analytics bridge diagnostic
+try{
+  console.log("HDG TRACK:", eventName);
+  console.log("HDG EMBEDDED:", window.parent !== window);
+
+  if(window.parent && window.parent !== window){
+    console.log("HDG POSTMESSAGE: sending to parent");
+
+    window.parent.postMessage(
+      {
+        type:"HDG_ANALYTICS",
+        event:eventName,
+        params:safe
+      },
+      "*"
+    );
+
+    console.log("HDG POSTMESSAGE: send completed");
+  } else {
+    console.log("HDG POSTMESSAGE: no parent frame");
+  }
+}catch(e){
+  console.error("HDG POSTMESSAGE ERROR:", e);
+}
 
   // Optional fallback if a GA tag is ever added directly to the GitHub Pages app.
   try{
