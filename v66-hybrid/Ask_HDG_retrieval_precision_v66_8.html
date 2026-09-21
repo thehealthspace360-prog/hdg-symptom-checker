@@ -822,7 +822,7 @@ function loadArticles(){
 
   articleLoadPromise=(async()=>{
     const status=document.getElementById("indexStatus");
-    const candidates=["./HDG_Public_Article_Index.txt","./HDG_Public_Article_Index(1).txt"];
+    const candidates=["../HDG_Public_Article_Index.txt","../HDG_Public_Article_Index(1).txt"];
     const started=performance.now();
 
     for(const path of candidates){
